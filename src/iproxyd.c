@@ -4,6 +4,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <errno.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <ev.h>
@@ -53,6 +54,9 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 
 	int recv_len = read(watcher->fd, buf, MAX_BUF_SIZE);
 	if (recv_len <= 0) {
+		//printf("errno: %d, recv_len: %d\n",errno, recv_len);
+		//if (errno == 2)
+			hashmap_remove_spec_fd(mymap, watcher->fd);
 		perror("read");
 		ev_io_stop(loop, watcher);
 		close(watcher->fd);
@@ -154,8 +158,20 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 		case IPROXY_SUB_AND_GET:
 		break;
 		case IPROXY_UNSUB:
+		{
+			printf("IPROXY_UNSUB\n");
+			hashmap_remove_one_fd(mymap, key, watcher->fd);
+		}
 		break;
-		case IPROXY_COMMIT:
+		case IPROXY_UNSET:
+		{
+			printf("IPROXY_UNSET\n");
+			hashmap_remove_free(mymap, key);
+		}
+		break;
+		case IPROXY_SYNC:
+		break;
+		case IPROXY_LIST:
 		break;
 		default:
 			printf("error commid ID: %d\n", cmd->id);

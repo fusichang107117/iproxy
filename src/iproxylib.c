@@ -117,6 +117,11 @@ int iproxy_set(char *key, char *value)
 		return -1;
 	}
 
+	int sockfd = iproxyd_connect();
+	if (sockfd < 0) {
+		return -1;
+	}
+
 	iproxy_cmd_t cmd;
 	char buf[1024] = {'\0'};
 
@@ -143,7 +148,51 @@ int iproxy_set(char *key, char *value)
 	printf("SET: %s, value: %s\n", key, value);
 	int total_len = cmd_len + cmd.key_len + cmd.value_len;
 
-	int len = write(iproxy_sockfd, buf, total_len);
+	int len = write(sockfd, buf, total_len);
+
+	close(sockfd);
+	//printf("send: %d, str_len: %d\n", len, total_len);
+	return (len == (total_len + 1)) ? 0 : -1;
+}
+
+int iproxy_unset(char *key)
+{
+	if (!key || *key == '\0') {
+		printf("key must not be null\n");
+		return -1;
+	}
+
+	int sockfd = iproxyd_connect();
+	if (sockfd < 0) {
+		return -1;
+	}
+
+	iproxy_cmd_t cmd;
+	char buf[1024] = {'\0'};
+
+	int cmd_len = sizeof(cmd);
+
+	memcpy(cmd.magic,IPROXY,4);
+	cmd.id = IPROXY_UNSET;
+	cmd.key_len = strlen(key) + 1;
+	cmd.value_len = 0;
+	memcpy(buf,(char *)&cmd, cmd_len);
+
+	//printf("int: %d\n", sizeof(int));
+/*	printf("cmd_len: %d\n", cmd_len);
+	printf("key_len: %d\n", cmd.key_len);
+	printf("key: %s\n", key);
+	printf("value_len: %d\n", cmd.value_len);
+	printf("value: %s\n", value);*/
+
+	snprintf(buf + cmd_len,cmd.key_len,"%s",key);
+
+	printf("UNSET: %s\n", key);
+	int total_len = cmd_len + cmd.key_len + cmd.value_len;
+
+	int len = write(sockfd, buf, total_len);
+
+	close(sockfd);
 	//printf("send: %d, str_len: %d\n", len, total_len);
 	return (len == (total_len + 1)) ? 0 : -1;
 }
@@ -233,6 +282,32 @@ int iproxy_sub_and_get(char *key, char *value)
 
 int iproxy_unsub(char *key)
 {
+	if (!key || *key == '\0' ) {
+		printf("key must not be null\n");
+		return -1;
+	}
+
+	iproxy_cmd_t cmd;
+	char buf[1024] = {'\0'};
+
+	int cmd_len = sizeof(cmd);
+
+	memcpy(cmd.magic,IPROXY,4);
+	cmd.id = IPROXY_UNSUB;
+	cmd.key_len = strlen(key) + 1;
+	cmd.value_len = 0;
+	memcpy(buf,(char *)&cmd, cmd_len);
+
+	snprintf(buf + cmd_len,cmd.key_len,"%s",key);
+
+	int total_len = cmd_len + cmd.key_len;
+
+	int len = write(iproxy_sockfd, buf, total_len);
+
+	int ret = hashmap_remove(mymap, key);
+	//printf("hashmap_put ret: %d\n", ret);
+
+	printf("UNSUB: key: %s\n", key);
 	return 0;
 }
 

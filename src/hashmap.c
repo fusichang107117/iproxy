@@ -425,6 +425,41 @@ int hashmap_remove_one_fd(map_t in, char* key, int fd){
 }
 
 /*
+ * Remove the spec fd from the hashmap with all key
+ */
+int hashmap_remove_spec_fd(map_t in,int fd){
+	int curr;
+	int i,j,k;
+	hashmap_map* m;
+
+	/* Cast the hashmap */
+	m = (hashmap_map *) in;
+
+	/* On empty hashmap, return immediately */
+	if (hashmap_length(m) <= 0)
+		return MAP_MISSING;
+
+	/* Linear probing, if necessary */
+	for(i = 0; i<m->table_size; i++){
+		int in_use = m->data[i].in_use;
+		if (in_use == 1){
+			data_node_t *data = m->data[i].data;
+			for (j = 1; j <= data->fd[0]; j++) {
+				if (data->fd[j] == fd) {
+					for (k = j; k < data->fd[0]; k++)
+						data->fd[k] = data->fd[k + 1];
+					data->fd[k] = -1;
+					data->fd[0]--;
+					return MAP_OK;
+				}
+			}
+		}
+	}
+	/* Not found */
+	return MAP_MISSING;
+}
+
+/*
  * Iterate the function parameter over each element in the hashmap.  The
  * additional any_t argument is passed to the function as its first
  * argument and the hashmap element is the second.
@@ -455,7 +490,7 @@ int hashmap_iterate(map_t in, PFany f, any_t item) {
 /*
  * Remove an element with that key from the map
  */
-int hashmap_remove(map_t in, char* key){
+int hashmap_remove_free(map_t in, char* key){
 	int i;
 	int curr;
 	hashmap_map* m;
@@ -475,6 +510,46 @@ int hashmap_remove(map_t in, char* key){
 				/* Blank out the fields */
 				data_node_t *data = m->data[curr].data;
 				free(data->value);
+				free(data);
+				free(m->data[curr].key);
+
+				m->data[curr].in_use = 0;
+				m->data[curr].key = NULL;
+
+				/* Reduce the size */
+				m->size--;
+				return MAP_OK;
+			}
+		}
+		curr = (curr + 1) % m->table_size;
+	}
+
+	/* Data not found */
+	return MAP_MISSING;
+}
+
+/*
+ * Remove an element with that key from the map
+ */
+int hashmap_remove(map_t in, char* key){
+	int i;
+	int curr;
+	hashmap_map* m;
+
+	/* Cast the hashmap */
+	m = (hashmap_map *) in;
+
+	/* Find key */
+	curr = hashmap_hash_int(m, key);
+
+	/* Linear probing, if necessary */
+	for(i = 0; i<MAX_CHAIN_LENGTH; i++){
+
+		int in_use = m->data[curr].in_use;
+		if (in_use == 1){
+			if (strcmp(m->data[curr].key,key)==0){
+				/* Blank out the fields */
+				data_node_t *data = m->data[curr].data;
 				free(data);
 				free(m->data[curr].key);
 

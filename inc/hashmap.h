@@ -75,6 +75,16 @@ int hashmap_add_one_fd(map_t in, char* key, int fd);
 int hashmap_remove_one_fd(map_t in, char* key, int fd);
 
 /*
+ * Remove the fd from the hashmap with a key
+ */
+int hashmap_remove_spec_fd(map_t in,int fd);
+
+/*
+ * Remove an element from the hashmap. Return MAP_OK or MAP_MISSING.
+ */
+int hashmap_remove_free(map_t in, char* key);
+
+/*
  * Remove an element from the hashmap. Return MAP_OK or MAP_MISSING.
  */
 int hashmap_remove(map_t in, char* key);

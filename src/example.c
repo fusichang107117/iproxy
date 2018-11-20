@@ -32,15 +32,15 @@ static void periodic_cb(struct ev_loop *loop, ev_periodic *w, int revents)
 {
 	static int flag = 1;
 
-	iproxy_set("key1", "on");
+	//iproxy_set("key1", "on");
 
 	//iproxy_set("key2", "on");
 
 	if (flag) {
 
-		//iproxy_sub("key1", callback1);
+		iproxy_sub("key1", callback1);
 
-		//proxy_sub("key2", callback2);
+		iproxy_sub("key2", callback2);
 
 		flag = 0;
 	}
