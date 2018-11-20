@@ -49,9 +49,10 @@ static int ipc_server_init(void)
 static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int revents)
 {
 	char buf[MAX_BUF_SIZE] = { 0 };
+	int ret;
 
-	int ret = read(watcher->fd, buf, MAX_BUF_SIZE);
-	if (ret <= 0) {
+	int recv_len = read(watcher->fd, buf, MAX_BUF_SIZE);
+	if (recv_len <= 0) {
 		perror("read");
 		ev_io_stop(loop, watcher);
 		close(watcher->fd);
@@ -59,39 +60,44 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 		ipc_client_count--;
 		return;
 	}
-	buf[ret] = '\0';
-	printf("ret:%d, %s\n", ret, buf);
+	buf[recv_len] = '\0';
+	//printf("ret:%d, %s\n", ret, buf);
 	int cmd_len = sizeof(iproxy_cmd_t);
 
 	iproxy_cmd_t *cmd = (iproxy_cmd_t *)buf;
 
-	printf("cmdid: %d\n", cmd->id);
-	printf("keylen: %d\n", cmd->key_len);
-	printf("valuelen: %d\n", cmd->value_len);
+	//printf("cmdid: %d\n", cmd->id);
+	//printf("keylen: %d\n", cmd->key_len);
+	//printf("valuelen: %d\n", cmd->value_len);
 
 	char *key = buf + cmd_len;
 	char *value = buf + cmd_len + cmd->key_len;
 
-	printf("key: %s\n", key);
-	printf("value: %s\n", value);
+	//printf("key: %s\n", key);
+	//printf("value: %s\n", value);
 
 	switch(cmd->id) {
 		case IPROXY_SET:
 		{
 			data_node_t *data;
+			printf("IPROXY_SET\n");
 			ret = hashmap_get(mymap, key, (void**)(&data));
 			if (ret == MAP_OK) {
-				if (memcpy(data->value, value, cmd->value_len) == 0) {
+				if (memcmp(data->value, value, cmd->value_len) == 0) {
 					printf("value is same, ignore it\n");
 					return;
 				} else {
 					int i = 0;
+
 					char *value1 = malloc(cmd->value_len);
 					snprintf(value1, cmd->value_len, "%s", value);
-					ret = hashmap_update_one_value(mymap, key, value);
-					printf("hashmap_update_one_value ret: %d\n", ret);
+					ret = hashmap_update_one_value(mymap, key, value1);
+
+					iproxy_cmd_t *ack = (iproxy_cmd_t *)buf;
+					ack->id = IPROXY_PUB;
 					for (i = 1; i <= data->fd[0]; i++) {
-						write(data->fd[i], buf,  strlen(buf) + 1);
+						printf(" data->fd[%d]: %d, key: %s, value: %s\n", i, data->fd[i], key, value);
+						write(data->fd[i], buf,  recv_len);
 					}
 				}
 			} else {
@@ -108,9 +114,10 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 		break;
 		case IPROXY_GET:
 		{
+			printf("IPROXY_GET\n");
 			data_node_t *data;
 			ret = hashmap_get(mymap, key, (void**)(&data));
-			printf("hashmap_get ret: %d\n", ret);
+			//printf("hashmap_get ret: %d\n", ret);
 			if (ret != MAP_OK) {
 				printf("%s not found\n", key);
 				buf[0]='\0';
@@ -122,9 +129,10 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 			write(watcher->fd,buf, strlen(buf) + 1);
 		}
 		break;
-		case IPROXY_REGISTER:
+		case IPROXY_SUB:
 		{
 			data_node_t *data;
+			printf("IPROXY_SUB\n");
 			ret = hashmap_get(mymap, key, (void**)(&data));
 			printf("hashmap_get ret: %d\n", ret);
 			if (ret == MAP_OK) {
@@ -143,9 +151,9 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 			}
 		}
 		break;
-		case IPROXY_REGISTER_AND_GET:
+		case IPROXY_SUB_AND_GET:
 		break;
-		case IPROXY_UNREGISTER:
+		case IPROXY_UNSUB:
 		break;
 		case IPROXY_COMMIT:
 		break;

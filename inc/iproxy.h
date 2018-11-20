@@ -14,11 +14,11 @@ typedef enum
 {
 	IPROXY_SET = 1000,
 	IPROXY_GET,
-	IPROXY_REGISTER,
-	IPROXY_REGISTER_AND_GET,
-	IPROXY_UNREGISTER,
+	IPROXY_SUB,
+	IPROXY_SUB_AND_GET,
+	IPROXY_UNSUB,
 	IPROXY_COMMIT,
-	IPROXY_REGISTER_CB,
+	IPROXY_PUB,
 }cmd_id_t;
 
 typedef struct
@@ -36,6 +36,13 @@ typedef struct fd_node
 	int fd;
 	struct fd_node *next;
 } fd_node_t;
+
+typedef void (*func_cb)(char *);
+
+typedef struct
+{
+	func_cb func;
+} func_node_t;
 
 typedef struct
 {

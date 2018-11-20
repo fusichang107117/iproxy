@@ -329,6 +329,8 @@ int hashmap_update_one_value(map_t in, char* key, char* value){
 		if (in_use == 1){
 			if (strcmp(m->data[curr].key,key)==0){
 				data_node_t *data = m->data[curr].data;
+
+				printf("%s(), %d, %s, %s\n", __func__, __LINE__, data->value, value);
 				free(data->value);
 				data->value = value;
 				return MAP_OK;

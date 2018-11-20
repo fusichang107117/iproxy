@@ -36,18 +36,49 @@ int iproxyd_connect(void)
 	return sockfd;
 }
 
+void callback1(char  *value)
+{
+	printf("%s, %d, value: %s\n", __func__, __LINE__,value);
+}
+
+void callback2(char  *value)
+{
+	printf("%s, %d, value: %s\n", __func__, __LINE__,value);
+}
+
 static void periodic_cb(struct ev_loop *loop, ev_periodic *w, int revents)
 {
 	//log_debug("%s(), ot_sockfd: %d\n", __func__, __LINE__, ot_sockfd);
 	if (iproxy_sockfd < 0)
 		iproxy_sockfd = iproxyd_connect();
+
+	static int flag = 1;
+
+	iproxy_set("key1", "on");
+
+	iproxy_set("key2", "on");
+
+	if (flag) {
+
+		iproxy_sub("key1", callback1);
+
+		iproxy_sub("key2", callback2);
+
+		flag = 0;
+	}
+
+	iproxy_set("key2", "off");
+
+	iproxy_set("key1", "off");
 }
 
 static void iproxy_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int revents)
 {
 	char buf[MAX_BUF_SIZE] = { 0 };
+	int cmd_len = sizeof(iproxy_cmd_t);
 
 	int ret = read(watcher->fd, buf, MAX_BUF_SIZE);
+	//printf("%s(), ret: %d\n", __func__, ret);
 	if (ret <= 0) {
 		perror("read");
 		ev_io_stop(loop, watcher);
@@ -57,7 +88,29 @@ static void iproxy_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int 
 		return;
 	}
 	buf[ret] = '\0';
-	printf("ret:%d, %s\n", ret, buf);
+	//printf("ret:%d\n", ret);
+
+	iproxy_cmd_t *ack = (iproxy_cmd_t *)buf;
+	//printf("magic:%s\n", ack->magic);
+	//printf("ID:%d\n", ack->id);
+	//printf("key_len:%d\n", ack->key_len);
+	//printf("value_len:%d\n", ack->value_len);
+
+	char *key = buf + cmd_len;
+	char *value = buf + cmd_len + ack->key_len;
+	//printf("key:%s\n", key);
+	//printf("value:%s\n", value);
+
+	if (ret != (cmd_len + ack->key_len + ack->value_len) || ack->key_len <= 1 || ack->id != IPROXY_PUB)
+		return;
+
+	func_node_t *func_node;
+	ret = hashmap_get(mymap, key, (void**)(&func_node));
+	if (ret == MAP_OK) {
+		//printf("==========\n");
+		//callback(value);
+		func_node->func(value);
+	}
 }
 
 int iproxy_open(void)
@@ -109,21 +162,22 @@ int iproxy_set(char *key, char *value)
 	memcpy(buf,(char *)&cmd, cmd_len);
 
 	//printf("int: %d\n", sizeof(int));
-	printf("cmd_len: %d\n", cmd_len);
+/*	printf("cmd_len: %d\n", cmd_len);
 	printf("key_len: %d\n", cmd.key_len);
 	printf("key: %s\n", key);
 	printf("value_len: %d\n", cmd.value_len);
-	printf("value: %s\n", value);
+	printf("value: %s\n", value);*/
 
 	snprintf(buf + cmd_len,cmd.key_len,"%s",key);
 	if(value) {
 		snprintf(buf + cmd_len + cmd.key_len,cmd.value_len,"%s",value);
 	}
 
+	printf("SET: %s, value: %s\n", key, value);
 	int total_len = cmd_len + cmd.key_len + cmd.value_len;
 
 	int len = write(iproxy_sockfd, buf, total_len);
-	printf("send: %d, str_len: %d\n", len, total_len);
+	//printf("send: %d, str_len: %d\n", len, total_len);
 	return (len == (total_len + 1)) ? 0 : -1;
 }
 
@@ -149,15 +203,25 @@ int iproxy_get(char *key, char *value)
 
 	int total_len = cmd_len + cmd.key_len;
 
-	int len = write(iproxy_sockfd, buf, total_len);
+	int sockfd = iproxyd_connect();
+	if (sockfd < 0) {
+		return -1;
+	}
 
-	int ret = read(iproxy_sockfd, buf, 1024);
+	usleep(1000);
+	int len = write(sockfd, buf, total_len);
 
-	printf("GET: ret: %d, result: %s\n", ret, buf);
+	int ret = read(sockfd, buf, 1024);
+
+	close(sockfd);
+
+	snprintf(value, 1024, "%s",buf);
+
+	printf("GET: value: %s\n", buf);
 	return 0;
 }
 
-int iproxy_register(char *key, void (*func)(char *))
+int iproxy_sub(char *key, void (*func)(char *))
 {
 	if (!key || *key == '\0' ) {
 		printf("key must not be null\n");
@@ -170,7 +234,7 @@ int iproxy_register(char *key, void (*func)(char *))
 	int cmd_len = sizeof(cmd);
 
 	memcpy(cmd.magic,IPROXY,4);
-	cmd.id = IPROXY_REGISTER;
+	cmd.id = IPROXY_SUB;
 	cmd.key_len = strlen(key) + 1;
 	cmd.value_len = 0;
 	memcpy(buf,(char *)&cmd, cmd_len);
@@ -181,25 +245,26 @@ int iproxy_register(char *key, void (*func)(char *))
 
 	int len = write(iproxy_sockfd, buf, total_len);
 
-	data_node_t *data;
-	data = malloc(sizeof(data_node_t));
-	data->value = func;
-	char *key1 = malloc(cmd.key_len);
+	func_node_t *func_node;
+	func_node = malloc(sizeof(func_node_t));
+	func_node->func = func;
 
+	char *key1 = malloc(cmd.key_len);
 	snprintf(key1, cmd.key_len, "%s", key);
 
-	int ret = hashmap_put(mymap, key1, data);
-	printf("hashmap_put ret: %d\n", ret);
+	int ret = hashmap_put(mymap, key1, func_node);
+	//printf("hashmap_put ret: %d\n", ret);
 
+	printf("SUB: key: %s\n", key);
 	return 0;
 }
 
-int iproxy_register_and_get(char *key, char *value)
+int iproxy_sub_and_get(char *key, char *value)
 {
 	return 0;
 }
 
-int iproxy_unregister(char *key)
+int iproxy_unsub(char *key)
 {
 	return 0;
 }
@@ -209,11 +274,6 @@ int iproxy_commit()
 	return 0;
 }
 
-void *callback(char  *value)
-{
-	printf("%s, %d\n", __func__, __LINE__);
-}
-
 int main(int argc, char const *argv[])
 {
 	/* code */
@@ -221,16 +281,38 @@ int main(int argc, char const *argv[])
 		printf("use like this: ./iproxylib key value\n");
 		return -1;
 	}*/
+
+	struct ev_loop *loop = EV_DEFAULT;
+
 	char buf[1024];
+
+	int fd = iproxy_open();
+	if (fd < 0) {
+		printf("iproxyd connect error\n");
+		return -1;
+	}
+
+	printf("start mainloop,ev_backend is %d\n", ev_backend(loop));
+	ev_run(loop, 0);
+
+	//iproxy_close();
+
+
+/*	char buf[1024];
 	if(strcmp(argv[1], "set") == 0)
 		iproxy_set(argv[2], argv[3]);
 	else if(strcmp(argv[1], "get") == 0)
 		iproxy_get(argv[2],buf);
-	else if(strcmp(argv[1], "register") == 0)
+	else if(strcmp(argv[1], "sub") == 0)
 		iproxy_register(argv[2], callback);
-	else if (strcmp(argv[1], "unregister") == 0)
+	else if (strcmp(argv[1], "unsub") == 0)
 		iproxy_unregister(argv[2]);
 	else if (strcmp(argv[1], "commit") == 0)
-		iproxy_commit();
+		iproxy_commit();*/
+
+	printf("%s(),%d\n",__func__, __LINE__);
+
+	ev_default_destroy();
+
 	return 0;
 }
