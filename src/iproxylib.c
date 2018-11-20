@@ -36,40 +36,11 @@ int iproxyd_connect(void)
 	return sockfd;
 }
 
-void callback1(char  *value)
-{
-	printf("%s, %d, value: %s\n", __func__, __LINE__,value);
-}
-
-void callback2(char  *value)
-{
-	printf("%s, %d, value: %s\n", __func__, __LINE__,value);
-}
-
 static void periodic_cb(struct ev_loop *loop, ev_periodic *w, int revents)
 {
 	//log_debug("%s(), ot_sockfd: %d\n", __func__, __LINE__, ot_sockfd);
 	if (iproxy_sockfd < 0)
 		iproxy_sockfd = iproxyd_connect();
-
-	static int flag = 1;
-
-	iproxy_set("key1", "on");
-
-	iproxy_set("key2", "on");
-
-	if (flag) {
-
-		iproxy_sub("key1", callback1);
-
-		iproxy_sub("key2", callback2);
-
-		flag = 0;
-	}
-
-	iproxy_set("key2", "off");
-
-	iproxy_set("key1", "off");
 }
 
 static void iproxy_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int revents)
@@ -107,16 +78,12 @@ static void iproxy_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int 
 	func_node_t *func_node;
 	ret = hashmap_get(mymap, key, (void**)(&func_node));
 	if (ret == MAP_OK) {
-		//printf("==========\n");
-		//callback(value);
 		func_node->func(value);
 	}
 }
 
 int iproxy_open(void)
 {
-	struct ev_loop *loop = EV_DEFAULT;
-
 	iproxy_sockfd = iproxyd_connect();
 	if (iproxy_sockfd < 0) {
 		return -1;
@@ -126,7 +93,7 @@ int iproxy_open(void)
 
 	printf("connect iproxyd success...\n");
 	ev_periodic_init(&periodic_tick, periodic_cb, 0., 5., 0);
-	ev_periodic_start(loop, &periodic_tick);
+	ev_periodic_start(EV_DEFAULT_ &periodic_tick);
 
 	ev_io_init(&iproxy_client, iproxy_recv_handle, iproxy_sockfd, EV_READ);
 	ev_io_start(EV_DEFAULT_ &iproxy_client);
@@ -271,48 +238,5 @@ int iproxy_unsub(char *key)
 
 int iproxy_commit()
 {
-	return 0;
-}
-
-int main(int argc, char const *argv[])
-{
-	/* code */
-/*	if (argc != 3) {
-		printf("use like this: ./iproxylib key value\n");
-		return -1;
-	}*/
-
-	struct ev_loop *loop = EV_DEFAULT;
-
-	char buf[1024];
-
-	int fd = iproxy_open();
-	if (fd < 0) {
-		printf("iproxyd connect error\n");
-		return -1;
-	}
-
-	printf("start mainloop,ev_backend is %d\n", ev_backend(loop));
-	ev_run(loop, 0);
-
-	//iproxy_close();
-
-
-/*	char buf[1024];
-	if(strcmp(argv[1], "set") == 0)
-		iproxy_set(argv[2], argv[3]);
-	else if(strcmp(argv[1], "get") == 0)
-		iproxy_get(argv[2],buf);
-	else if(strcmp(argv[1], "sub") == 0)
-		iproxy_register(argv[2], callback);
-	else if (strcmp(argv[1], "unsub") == 0)
-		iproxy_unregister(argv[2]);
-	else if (strcmp(argv[1], "commit") == 0)
-		iproxy_commit();*/
-
-	printf("%s(),%d\n",__func__, __LINE__);
-
-	ev_default_destroy();
-
 	return 0;
 }

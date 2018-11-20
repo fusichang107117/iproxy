@@ -505,10 +505,6 @@ void hashmap_free_free(map_t in){
 	int i;
 	hashmap_map* m = (hashmap_map*) in;
 
-	/* On empty hashmap, return immediately */
-	if (hashmap_length(m) <= 0)
-		return;	
-
 	/* Linear probing */
 	for(i = 0; i< m->table_size; i++) {
 		if(m->data[i].in_use != 0) {
@@ -526,10 +522,6 @@ void hashmap_free_free(map_t in){
 void hashmap_free_free_free(map_t in){
 	int i;
 	hashmap_map* m = (hashmap_map*) in;
-
-	/* On empty hashmap, return immediately */
-	if (hashmap_length(m) <= 0)
-		return;	
 
 	/* Linear probing */
 	for(i = 0; i< m->table_size; i++) {

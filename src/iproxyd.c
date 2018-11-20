@@ -198,8 +198,12 @@ static void ipc_accept_handle(struct ev_loop *loop, struct ev_io *watcher, int r
 
 void sig_stop_ev(void)
 {
-	ev_async_send(EV_DEFAULT_ &async);
 	ev_break(EV_DEFAULT_ EVBREAK_ALL);
+}
+
+static void sighandler(int sig)
+{
+	ev_async_send(EV_DEFAULT_ &async);
 }
 
 int main(int argc, char const *argv[])
@@ -212,6 +216,11 @@ int main(int argc, char const *argv[])
 	if (ipc_serverfd < 0) {
 		return -1;
 	}
+
+	signal(SIGINT, sighandler);
+	signal(SIGTERM, sighandler);
+	signal(SIGSEGV, sighandler);
+	signal(SIGPIPE, SIG_IGN);
 
 	ev_io_init(&ipc_server, ipc_accept_handle, ipc_serverfd, EV_READ);
 	ev_io_start(loop, &ipc_server);
