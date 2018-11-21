@@ -33,7 +33,6 @@ static void periodic_cb(struct ev_loop *loop, ev_periodic *watcher, int revents)
 	static int flag = 1;
 
 	ev_periodic_stop(EV_DEFAULT_ watcher);
-	//free(watcher);
 
 	//iproxy_set("key1", "on");
 
@@ -60,15 +59,6 @@ static void sighandler(int sig)
 
 int main(int argc, char const *argv[])
 {
-	/* code */
-/*	if (argc != 3) {
-		printf("use like this: ./iproxylib key value\n");
-		return -1;
-	}*/
-
-	//map_t mymap = hashmap_new();
-	//hashmap_free_free(mymap);
-
 	int fd = iproxy_open();
 	if (fd < 0) {
 		printf("iproxyd connect error\n");
@@ -90,24 +80,10 @@ int main(int argc, char const *argv[])
 
 	printf("start mainloop,ev_backend is %d\n", ev_backend(loop));
 	ev_run(loop, 0);
-#if 0
-/*	char buf[1024];
-	if(strcmp(argv[1], "set") == 0)
-		iproxy_set(argv[2], argv[3]);
-	else if(strcmp(argv[1], "get") == 0)
-		iproxy_get(argv[2],buf);
-	else if(strcmp(argv[1], "sub") == 0)
-		iproxy_register(argv[2], callback);
-	else if (strcmp(argv[1], "unsub") == 0)
-		iproxy_unregister(argv[2]);
-	else if (strcmp(argv[1], "commit") == 0)
-		iproxy_commit();*/
-#endif
 
 	printf("%s(),%d\n",__func__, __LINE__);
 
 	iproxy_close();
-
 	ev_default_destroy();
 	return 0;
 }

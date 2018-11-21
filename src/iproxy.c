@@ -30,6 +30,8 @@ int main(int argc, char const *argv[])
 		iproxy_unset(argv[2]);
 	} else if (argc == 2 && strcmp(argv[1], "list") == 0) {
 		iproxy_list();
+	} else if (argc == 2 && strcmp(argv[1], "sync") == 0) {
+		iproxy_sync();
 	} else {
 		usage();
 	}

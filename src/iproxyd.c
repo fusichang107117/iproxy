@@ -132,7 +132,6 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 					}
 					if (sync_flag == false) {
 						sync_flag = true;
-						ev_periodic_init(&sync_tick, sync_cb, 0., 3., 0);
 						ev_periodic_start(loop, &sync_tick);
 					}
 				}
@@ -147,7 +146,6 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 				ret = hashmap_put(mymap, key1, data);
 				if (sync_flag == false) {
 					sync_flag = true;
-					ev_periodic_init(&sync_tick, sync_cb, 0., 3., 0);
 					ev_periodic_start(loop, &sync_tick);
 				}
 				//printf("hashmap_put ret: %d\n", ret);
@@ -208,18 +206,17 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 			printf("IPROXY_UNSET\n");
 			hashmap_remove_free(mymap, key);
 			close_flag = true;
+			if (sync_flag == false) {
+				sync_flag = true;
+				ev_periodic_start(loop, &sync_tick);
+			}
+			close_flag = true;
 		}
 		break;
 		case IPROXY_SYNC:
 		{
-			int index = 0;
-			do {
-				int real_len = 0;
-				memset(buf, 0, MAX_BUF_SIZE);
-				index = hashmap_get_from_index(mymap, index, buf, MAX_BUF_SIZE, &real_len);
-				//printf("index: %d, real_len: %d\n", index, real_len);
-				hashmap_sync(buf, real_len);
-			} while (index != MAP_END);
+			sync_flag = true;
+			ev_feed_event(loop, &sync_tick, EV_PERIODIC);
 			close_flag = true;
 		}
 		break;
@@ -305,6 +302,8 @@ int main(int argc, char const *argv[])
 
 	ev_io_init(&ipc_server, ipc_accept_handle, ipc_serverfd, EV_READ);
 	ev_io_start(loop, &ipc_server);
+
+	ev_periodic_init(&sync_tick, sync_cb, 0., BACKEND_SYNC_INTERVAL, 0);
 
 	ev_async_init(&async, sig_stop_ev);
 	ev_async_start(loop, &async);

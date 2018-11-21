@@ -8,6 +8,7 @@
 
 #define MAX_KEY_LEN		32
 #define MAX_VALUE_LEN	64
+#define BACKEND_SYNC_INTERVAL	10
 
 #define MAX_BUF_SIZE 1024
 #define	IPROXY	"MII\0"
@@ -24,7 +25,6 @@ typedef enum
 	IPROXY_LIST,
 	IPROXY_SYNC,
 	IPROXY_PUB,
-	IPROXY_LIST_ACK,
 }cmd_id_t;
 
 typedef struct

@@ -54,7 +54,6 @@ static void iproxy_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int 
 		perror("read");
 		ev_io_stop(loop, watcher);
 		close(watcher->fd);
-		free(watcher);
 		iproxy_sockfd = -1;
 		return;
 	}
@@ -341,9 +340,29 @@ int iproxy_unsub(char *key)
 	return 0;
 }
 
-int iproxy_commit()
+int iproxy_sync(void)
 {
-	return 0;
+	int sockfd = iproxyd_connect();
+	if (sockfd < 0) {
+		return -1;
+	}
+
+	iproxy_cmd_t cmd;
+	char buf[1024] = {'\0'};
+
+	int cmd_len = sizeof(cmd);
+
+	memcpy(cmd.magic,IPROXY,4);
+	cmd.id = IPROXY_SYNC;
+	cmd.key_len = 0;
+	cmd.value_len = 0;
+	memcpy(buf,(char *)&cmd, cmd_len);
+
+	int len = write(sockfd, buf, cmd_len);
+
+	close(sockfd);
+	//printf("send: %d, str_len: %d\n", len, total_len);
+	return (len == cmd_len) ? 0 : -1;
 }
 
 int iproxy_list(void)
