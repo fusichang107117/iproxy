@@ -252,7 +252,7 @@ int iproxy_get(char *key, char *value)
 
 	snprintf(value, 1024, "%s",buf);
 
-	printf("GET: value: %s\n", buf);
+	//printf("GET: value: %s\n", buf);
 	return 0;
 }
 
@@ -380,7 +380,7 @@ int iproxy_list(void)
 			key_len = strlen(key) + 1;
 			value = key + key_len;
 			value_len = strlen(value) + 1;
-			offset += key_len + value_len;
+			offset += (key_len + value_len);
 
 			printf("<%s>\t\t\t<%s>\n", key, value);
 		}

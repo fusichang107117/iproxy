@@ -1,6 +1,6 @@
 bin_PROGRAMS = iproxyd iproxy_client iproxy
 
-iproxyd_SOURCES = src/iproxyd.c src/hashmap.c
+iproxyd_SOURCES = src/iproxyd.c src/hashmap.c src/backend.c
 iproxyd_LDADD =  -lev
 iproxyd_CFLAGS = -I./inc
 

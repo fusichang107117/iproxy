@@ -28,9 +28,12 @@ void callback2(char  *value)
 	printf("%s, %d, value: %s\n", __func__, __LINE__,value);
 }
 
-static void periodic_cb(struct ev_loop *loop, ev_periodic *w, int revents)
+static void periodic_cb(struct ev_loop *loop, ev_periodic *watcher, int revents)
 {
 	static int flag = 1;
+
+	ev_periodic_stop(EV_DEFAULT_ watcher);
+	//free(watcher);
 
 	//iproxy_set("key1", "on");
 
