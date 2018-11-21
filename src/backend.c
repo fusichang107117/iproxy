@@ -29,7 +29,11 @@ int hashmap_value_init(map_t mymap)
 		return -1;
 	}
 
-	int offset = 0;
+	sync_head_t *sync_head = (sync_head_t *)buf;
+
+	printf("INIT: magic: %s, crc: %lu\n", sync_head->magic, sync_head->crc);
+
+	int offset = sizeof(sync_head_t);
 	char *key, *value;
 	int key_len, value_len;
 
@@ -58,15 +62,39 @@ int hashmap_value_init(map_t mymap)
 	return 0;
 }
 
-int hashmap_sync(char *buf, int buf_len)
+int hashmap_sync(map_t mymap)
 {
+	map_t hashmap = mymap;
 	FILE *fp = fopen(IPROXY_FILE_PATH, "wb");
 	if (!fp) {
 		printf("file not exsit\n");
 		return -1;
 	}
-	fwrite(buf, 1, buf_len, fp);
+	int head_len = sizeof(sync_head_t);
+
+	fseek(fp, head_len, SEEK_SET);
+	unsigned long crc_value = 0;
+
+	char buf[MAX_BUF_SIZE];
+	int index = 0;
+	do {
+		int real_len = 0;
+		memset(buf, 0, MAX_BUF_SIZE);
+		index = hashmap_get_from_index(hashmap, index, buf, MAX_BUF_SIZE, &real_len);
+
+		crc_value = crc32_start(buf, real_len, crc_value);
+		fwrite(buf, 1, real_len, fp);
+	} while (index != MAP_END);
+
+	fseek(fp, 0, SEEK_SET);
+
+	sync_head_t sync_head;
+	snprintf(sync_head.magic, 4, "%s", IPROXY);
+	sync_head.crc = crc_value;
+
+	fwrite(&sync_head, 1, head_len, fp);
+
+	printf("SYNC: magic: %s, crc: %lu\n", sync_head.magic, sync_head.crc);
 	fclose(fp);
+	return 0;
 }
-
-

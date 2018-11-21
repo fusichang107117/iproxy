@@ -7,7 +7,6 @@
 
 
 int hashmap_value_init(map_t mymap);
-int hashmap_sync(char *buf, int buf_len);
-
+int hashmap_sync(map_t mymap);
 
 #endif

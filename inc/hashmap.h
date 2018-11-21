@@ -36,6 +36,12 @@ typedef int (*PFany)(any_t, any_t);
  */
 typedef any_t map_t;
 
+/* Return a 32-bit CRC of the contents of the buffer. */
+unsigned long crc32(const unsigned char *s, unsigned int len);
+
+/* Return a 32-bit CRC of the contents of the buffer. */
+unsigned long crc32_start(const unsigned char *s, unsigned int len, unsigned long last);
+
 /*
  * Return an empty hashmap. Returns NULL if empty.
 */

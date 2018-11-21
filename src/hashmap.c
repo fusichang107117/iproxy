@@ -160,6 +160,22 @@ unsigned long crc32(const unsigned char *s, unsigned int len)
 	return crc32val;
 }
 
+/* Return a 32-bit CRC of the contents of the buffer. */
+unsigned long crc32_start(const unsigned char *s, unsigned int len, unsigned long last)
+{
+	unsigned int i;
+	unsigned long crc32val = last;
+
+	//crc32val = 0;
+	for (i = 0;  i < len;  i ++)
+	{
+		crc32val =
+		crc32_tab[(crc32val ^ s[i]) & 0xff] ^(crc32val >> 8);
+	}
+	return crc32val;
+}
+
+
 /*
  * Hashing function for a string
  */

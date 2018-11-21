@@ -54,22 +54,13 @@ static int ipc_server_init(void)
 
 static void sync_cb(struct ev_loop *loop, ev_periodic *watcher, int revents)
 {
-	char buf[MAX_BUF_SIZE];
-	int index = 0;
-
 	ev_periodic_stop(EV_DEFAULT_ watcher);
 	printf("sync to file...\n");
-	do {
-		int real_len = 0;
-		memset(buf, 0, MAX_BUF_SIZE);
-		index = hashmap_get_from_index(mymap, index, buf, MAX_BUF_SIZE, &real_len);
-		//printf("index: %d, real_len: %d\n", index, real_len);
-		hashmap_sync(buf, real_len);
-	} while (index != MAP_END);
+	hashmap_sync(mymap);
 	sync_flag = false;
 }
 
-static close_fd(struct ev_io *watcher)
+static void close_fd(struct ev_io *watcher)
 {
 	ev_io_stop(EV_DEFAULT_ watcher);
 	close(watcher->fd);

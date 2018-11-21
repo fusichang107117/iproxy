@@ -8,11 +8,17 @@
 
 #define MAX_KEY_LEN		32
 #define MAX_VALUE_LEN	64
-#define BACKEND_SYNC_INTERVAL	10
+#define BACKEND_SYNC_INTERVAL	30
 
 #define MAX_BUF_SIZE 1024
 #define	IPROXY	"MII\0"
 //magic-cmdid-key-value
+
+typedef struct
+{
+	char magic[4];
+	unsigned long crc;
+} sync_head_t;
 
 typedef enum
 {
