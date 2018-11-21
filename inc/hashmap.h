@@ -10,6 +10,7 @@
 #define __HASHMAP_H__
 
 
+#define MAP_END -5 	/* OK */
 #define MAP_REPEAT -4 	/* OK */
 #define MAP_MISSING -3  /* No such element */
 #define MAP_FULL -2 	/* Hashmap is full */
@@ -58,6 +59,11 @@ int hashmap_put(map_t in, char* key, any_t value);
  * Get an element from the hashmap. Return MAP_OK or MAP_MISSING.
  */
 int hashmap_get(map_t in, char* key, any_t *arg);
+
+/*
+ * get element from index in the hashmap
+ */
+int hashmap_get_from_index(map_t in, int  index, char *buf, int buf_len, int *real_len);
 
 /*
  * Update the value of the hashmap with a key

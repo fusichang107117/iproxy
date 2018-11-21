@@ -117,6 +117,13 @@ int iproxy_set(char *key, char *value)
 		return -1;
 	}
 
+	int key_len = strlen(key) + 1;
+	int value_len = strlen(value) + 1;
+	if (key_len > MAX_KEY_LEN || value_len > MAX_VALUE_LEN) {
+		printf("key max length is %d, value max length is %d\n", MAX_KEY_LEN, MAX_VALUE_LEN);
+		return -1;
+	}
+
 	int sockfd = iproxyd_connect();
 	if (sockfd < 0) {
 		return -1;
@@ -129,8 +136,8 @@ int iproxy_set(char *key, char *value)
 
 	memcpy(cmd.magic,IPROXY,4);
 	cmd.id = IPROXY_SET;
-	cmd.key_len = strlen(key) + 1;
-	cmd.value_len = strlen(value) + 1;
+	cmd.key_len = key_len;
+	cmd.value_len = value_len;
 	memcpy(buf,(char *)&cmd, cmd_len);
 
 	//printf("int: %d\n", sizeof(int));
@@ -162,6 +169,12 @@ int iproxy_unset(char *key)
 		return -1;
 	}
 
+	int key_len = strlen(key) + 1;
+	if (key_len > MAX_KEY_LEN) {
+		printf("key max length is %d\n", MAX_KEY_LEN);
+		return -1;
+	}
+
 	int sockfd = iproxyd_connect();
 	if (sockfd < 0) {
 		return -1;
@@ -174,7 +187,7 @@ int iproxy_unset(char *key)
 
 	memcpy(cmd.magic,IPROXY,4);
 	cmd.id = IPROXY_UNSET;
-	cmd.key_len = strlen(key) + 1;
+	cmd.key_len = key_len;
 	cmd.value_len = 0;
 	memcpy(buf,(char *)&cmd, cmd_len);
 
@@ -200,7 +213,13 @@ int iproxy_unset(char *key)
 int iproxy_get(char *key, char *value)
 {
 	if (!key || *key == '\0' || !value ) {
-		printf("key must not be null\n");
+		printf("key and value must not be null\n");
+		return -1;
+	}
+
+	int key_len = strlen(key) + 1;
+	if (key_len > MAX_KEY_LEN ) {
+		printf("key max length is %d\n", MAX_KEY_LEN);
 		return -1;
 	}
 
@@ -211,7 +230,7 @@ int iproxy_get(char *key, char *value)
 
 	memcpy(cmd.magic,IPROXY,4);
 	cmd.id = IPROXY_GET;
-	cmd.key_len = strlen(key) + 1;
+	cmd.key_len = key_len;
 	cmd.value_len = 0;
 	memcpy(buf,(char *)&cmd, cmd_len);
 
@@ -244,6 +263,12 @@ int iproxy_sub(char *key, void (*func)(char *))
 		return -1;
 	}
 
+	int key_len = strlen(key) + 1;
+	if (key_len > MAX_KEY_LEN) {
+		printf("key max length is %d\n", MAX_KEY_LEN);
+		return -1;
+	}
+
 	iproxy_cmd_t cmd;
 	char buf[1024] = {'\0'};
 
@@ -251,7 +276,7 @@ int iproxy_sub(char *key, void (*func)(char *))
 
 	memcpy(cmd.magic,IPROXY,4);
 	cmd.id = IPROXY_SUB;
-	cmd.key_len = strlen(key) + 1;
+	cmd.key_len = key_len;
 	cmd.value_len = 0;
 	memcpy(buf,(char *)&cmd, cmd_len);
 
@@ -282,11 +307,16 @@ int iproxy_sub_and_get(char *key, char *value)
 
 int iproxy_unsub(char *key)
 {
-	if (!key || *key == '\0' ) {
+	if (!key || *key == '\0') {
 		printf("key must not be null\n");
 		return -1;
 	}
 
+	int key_len = strlen(key) + 1;
+	if (key_len > MAX_KEY_LEN) {
+		printf("key max length is %d\n", MAX_KEY_LEN);
+		return -1;
+	}
 	iproxy_cmd_t cmd;
 	char buf[1024] = {'\0'};
 
@@ -294,7 +324,7 @@ int iproxy_unsub(char *key)
 
 	memcpy(cmd.magic,IPROXY,4);
 	cmd.id = IPROXY_UNSUB;
-	cmd.key_len = strlen(key) + 1;
+	cmd.key_len = key_len;
 	cmd.value_len = 0;
 	memcpy(buf,(char *)&cmd, cmd_len);
 
@@ -313,5 +343,49 @@ int iproxy_unsub(char *key)
 
 int iproxy_commit()
 {
+	return 0;
+}
+
+int iproxy_list(void)
+{
+	iproxy_cmd_t cmd;
+	char buf[1024] = {'\0'};
+
+	int cmd_len = sizeof(cmd);
+
+	memcpy(cmd.magic,IPROXY,4);
+	cmd.id = IPROXY_LIST;
+	cmd.key_len = 0;
+	cmd.value_len = 0;
+	memcpy(buf,(char *)&cmd, cmd_len);
+
+	int total_len = cmd_len + cmd.key_len;
+
+	int sockfd = iproxyd_connect();
+	if (sockfd < 0) {
+		return -1;
+	}
+
+	usleep(1000);
+	int ret = write(sockfd, buf, total_len);
+	char *key, *value;
+	int key_len, value_len;
+
+	do {
+		int offset = 0;
+		memset(buf, 0, 1024);
+		ret = read(sockfd, buf, 1024);
+		while(ret > offset) {
+			key = buf + offset;
+			key_len = strlen(key) + 1;
+			value = key + key_len;
+			value_len = strlen(value) + 1;
+			offset += key_len + value_len;
+
+			printf("<%s>\t\t\t<%s>\n", key, value);
+		}
+	} while (ret > 0);
+
+	close(sockfd);
 	return 0;
 }

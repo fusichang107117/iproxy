@@ -460,6 +460,50 @@ int hashmap_remove_spec_fd(map_t in,int fd){
 }
 
 /*
+ * get element from index in the hashmap
+ */
+int hashmap_get_from_index(map_t in, int  index, char *buf, int buf_len, int *real_len) {
+	int i;
+	int offset = 0;
+
+	/* Cast the hashmap */
+	hashmap_map* m = (hashmap_map*) in;
+
+	if (index >= m->table_size || m->size <= 0) {
+		*real_len = 0;
+		return MAP_END;
+	}
+
+	/* Linear probing */
+	for(i = index; i< m->table_size; i++) {
+		if(m->data[i].in_use != 0) {
+			data_node_t *data = m->data[i].data;
+			char *key = m->data[i].key;
+			int key_len = strlen(key) + 1;
+			int value_len = strlen(data->value) + 1;
+
+			//printf("i: %d, offset: %d,  key_len: %d, value_len: %d\n", i, offset, key_len, value_len);
+			if (offset + key_len + value_len > buf_len) {
+				if (i == index) {
+					printf("buf is not enough %d(%d)\n", buf_len, key_len + value_len);
+					return MAP_END;
+				}
+				return i;
+			}
+			memcpy(buf + offset, key, key_len);
+			offset += key_len;
+			memcpy(buf + offset, data->value, value_len);
+			offset += value_len;
+			*real_len = offset;
+
+			//printf("<%s>\t\t\t<%s>\n", key, data->value);
+		}
+	}
+
+	return MAP_END;
+}
+
+/*
  * Iterate the function parameter over each element in the hashmap.  The
  * additional any_t argument is passed to the function as its first
  * argument and the hashmap element is the second.

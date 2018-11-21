@@ -6,6 +6,9 @@
 #define MAX_IPC_CLIENT_FDS	50
 #define MAX_REGISTER_FD	10
 
+#define MAX_KEY_LEN		32
+#define MAX_VALUE_LEN	64
+
 #define MAX_BUF_SIZE 1024
 #define	IPROXY	"MII\0"
 //magic-cmdid-key-value
@@ -21,6 +24,7 @@ typedef enum
 	IPROXY_LIST,
 	IPROXY_SYNC,
 	IPROXY_PUB,
+	IPROXY_LIST_ACK,
 }cmd_id_t;
 
 typedef struct

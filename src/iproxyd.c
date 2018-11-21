@@ -4,6 +4,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <errno.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -47,10 +48,19 @@ static int ipc_server_init(void)
 	return fd;
 }
 
+static close_fd(struct ev_io *watcher)
+{
+	ev_io_stop(EV_DEFAULT_ watcher);
+	close(watcher->fd);
+	free(watcher);
+	ipc_client_count--;
+}
+
 static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int revents)
 {
 	char buf[MAX_BUF_SIZE] = { 0 };
 	int ret;
+	bool close_flag = false;
 
 	int recv_len = read(watcher->fd, buf, MAX_BUF_SIZE);
 	if (recv_len <= 0) {
@@ -58,10 +68,7 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 		//if (errno == 2)
 			hashmap_remove_spec_fd(mymap, watcher->fd);
 		perror("read");
-		ev_io_stop(loop, watcher);
-		close(watcher->fd);
-		free(watcher);
-		ipc_client_count--;
+		close_fd(watcher);
 		return;
 	}
 	buf[recv_len] = '\0';
@@ -89,7 +96,6 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 			if (ret == MAP_OK) {
 				if (memcmp(data->value, value, cmd->value_len) == 0) {
 					printf("value is same, ignore it\n");
-					return;
 				} else {
 					int i = 0;
 
@@ -112,8 +118,9 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 				snprintf(key1, cmd->key_len, "%s", key);
 				snprintf(data->value, cmd->value_len, "%s", value);
 				ret = hashmap_put(mymap, key1, data);
-				printf("hashmap_put ret: %d\n", ret);
+				//printf("hashmap_put ret: %d\n", ret);
 			}
+			close_flag = true;
 		}
 		break;
 		case IPROXY_GET:
@@ -126,11 +133,12 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 				printf("%s not found\n", key);
 				buf[0]='\0';
 			} else {
-				printf("GET:key: %s\n", key);
-				printf("GET:value: %s\n", data->value);
+				//printf("GET:key: %s\n", key);
+				//printf("GET:value: %s\n", data->value);
 				snprintf(buf, MAX_BUF_SIZE, "%s", data->value);
 			}
 			write(watcher->fd,buf, strlen(buf) + 1);
+			close_flag = true;
 		}
 		break;
 		case IPROXY_SUB:
@@ -151,7 +159,7 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 				snprintf(key1, cmd->key_len, "%s", key);
 				snprintf(data->value, 1, "%s", "");
 				ret = hashmap_put(mymap, key1, data);
-				printf("hashmap_put ret: %d\n", ret);
+				//printf("hashmap_put ret: %d\n", ret);
 			}
 		}
 		break;
@@ -167,16 +175,30 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 		{
 			printf("IPROXY_UNSET\n");
 			hashmap_remove_free(mymap, key);
+			close_flag = true;
 		}
 		break;
 		case IPROXY_SYNC:
 		break;
 		case IPROXY_LIST:
+		{
+			int index = 0;
+			do {
+				int real_len = 0;
+				memset(buf, 0, MAX_BUF_SIZE);
+				index = hashmap_get_from_index(mymap, index, buf, MAX_BUF_SIZE, &real_len);
+				//printf("index: %d, real_len: %d\n", index, real_len);
+				write(watcher->fd, buf, real_len);
+			} while (index != MAP_END);
+			close_flag = true;
+		}
 		break;
 		default:
 			printf("error commid ID: %d\n", cmd->id);
 		break;
 	}
+	if (close_flag)
+		close_fd(watcher);
 }
 
 static void ipc_accept_handle(struct ev_loop *loop, struct ev_io *watcher, int revents)

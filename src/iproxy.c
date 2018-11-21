@@ -28,9 +28,10 @@ int main(int argc, char const *argv[])
 		printf("%s\n", buf);
 	} else if (argc == 3 && strcmp(argv[1], "unset") == 0) {
 		iproxy_unset(argv[2]);
+	} else if (argc == 2 && strcmp(argv[1], "list") == 0) {
+		iproxy_list();
 	} else {
 		usage();
 	}
 	return 0;
 }
-

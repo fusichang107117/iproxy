@@ -9,6 +9,7 @@ int iproxy_sub_and_get(char *key, char *value);
 int iproxy_unsub();
 int iproxy_unset(char *key);
 int iproxy_commit();
+int iproxy_list(void);
 
 
 #endif
