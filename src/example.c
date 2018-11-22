@@ -12,6 +12,8 @@
 struct ev_async async;
 struct ev_periodic periodic_tick;
 
+char key[64];
+
 void sig_stop_ev(void)
 {
 	printf("%s(), %d\n", __func__, __LINE__);
@@ -20,7 +22,7 @@ void sig_stop_ev(void)
 
 void callback1(char  *value)
 {
-	printf("%s, %d, value: %s\n", __func__, __LINE__,value);
+	printf("%s, %d, key:%s, value: %s\n", __func__, __LINE__,key, value);
 }
 
 void callback2(char  *value)
@@ -40,9 +42,9 @@ static void periodic_cb(struct ev_loop *loop, ev_periodic *watcher, int revents)
 
 	if (flag) {
 
-		iproxy_sub("key1", callback1);
+		iproxy_sub(key, callback1);
 
-		iproxy_sub("key2", callback2);
+		//iproxy_sub("key2", callback2);
 
 		flag = 0;
 	}
@@ -59,6 +61,14 @@ static void sighandler(int sig)
 
 int main(int argc, char const *argv[])
 {
+	if (argc != 2) {
+		printf("use like this: ./iproxy_example key\n");
+		return -1;
+	}
+	snprintf(key, 64, "%s", argv[1]);
+
+	printf("sub key: %s\n", key);
+
 	int fd = iproxy_open();
 	if (fd < 0) {
 		printf("iproxyd connect error\n");

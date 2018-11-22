@@ -31,7 +31,7 @@ typedef enum
 	IPROXY_LIST,
 	IPROXY_SYNC,
 	IPROXY_PUB,
-}cmd_id_t;
+}iproxy_cmd_id_t;
 
 typedef struct
 {

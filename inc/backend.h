@@ -3,8 +3,7 @@
 
 #include "hashmap.h"
 
-#define IPROXY_FILE_PATH "/home/fu/project/iproxy/iproxy.iproxy"
-
+#define IPROXY_FILE_PATH "/mnt/data/.iproxy.config"
 
 int hashmap_value_init(map_t mymap);
 int hashmap_sync(map_t mymap);
