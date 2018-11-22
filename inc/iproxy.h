@@ -2,7 +2,7 @@
 #define __IPROXY_H__
 
 
-#define IPC_SOCK_PATH 	"/tmp/mirror_ipc.socket"
+#define IPROXY_IPC_SOCK_PATH 	"/tmp/iproxy.socket"
 #define MAX_IPC_CLIENT_FDS	50
 #define MAX_REGISTER_FD	10
 
@@ -47,25 +47,25 @@ typedef struct fd_node
 {
 	int fd;
 	struct fd_node *next;
-} fd_node_t;
+}iproxy_fd_node_t;
 
 typedef void (*func_cb)(char *);
 
 typedef struct
 {
 	func_cb func;
-} func_node_t;
+}iproxy_func_node_t;
 
 typedef struct
 {
 	char *value;
 	int fd[MAX_REGISTER_FD + 1];
-} data_node_t;
+}iproxy_data_node_t;
 
 typedef struct
 {
 	char *key;
-	data_node_t data;
-} key_value_t;
+	iproxy_data_node_t data;
+}iproxy_key_value_t;
 
 #endif

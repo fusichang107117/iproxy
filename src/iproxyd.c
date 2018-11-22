@@ -27,7 +27,7 @@ static int ipc_server_init(void)
 	int fd;
 	struct sockaddr_un addr;
 
-	unlink(IPC_SOCK_PATH);
+	unlink(IPROXY_IPC_SOCK_PATH);
 
 	fd = socket(AF_UNIX, SOCK_SEQPACKET, 0);
 	if (fd < 0) {
@@ -37,7 +37,7 @@ static int ipc_server_init(void)
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_UNIX;
-	strncpy(addr.sun_path, IPC_SOCK_PATH, sizeof(addr.sun_path) - 1);
+	strncpy(addr.sun_path, IPROXY_IPC_SOCK_PATH, sizeof(addr.sun_path) - 1);
 
 	if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
 		printf("bind ipc server error\n");
@@ -102,7 +102,7 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 	switch(cmd->id) {
 		case IPROXY_SET:
 		{
-			data_node_t *data = NULL;
+			iproxy_data_node_t *data = NULL;
 			printf("IPROXY_SET\n");
 			ret = hashmap_get(mymap, key, (void**)(&data));
 			if (ret == MAP_OK) {
@@ -128,8 +128,8 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 				}
 			} else {
 				char *key1 = malloc(cmd->key_len);
-				data = malloc(sizeof(data_node_t));
-				memset(data, 0, sizeof(data_node_t));
+				data = malloc(sizeof(iproxy_data_node_t));
+				memset(data, 0, sizeof(iproxy_data_node_t));
 				data->value = malloc(cmd->value_len);
 				
 				snprintf(key1, cmd->key_len, "%s", key);
@@ -147,7 +147,7 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 		case IPROXY_GET:
 		{
 			printf("IPROXY_GET\n");
-			data_node_t *data;
+			iproxy_data_node_t *data;
 			ret = hashmap_get(mymap, key, (void**)(&data));
 			//printf("hashmap_get ret: %d\n", ret);
 			if (ret != MAP_OK) {
@@ -164,7 +164,7 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 		break;
 		case IPROXY_SUB:
 		{
-			data_node_t *data;
+			iproxy_data_node_t *data;
 			printf("IPROXY_SUB\n");
 			ret = hashmap_get(mymap, key, (void**)(&data));
 			printf("hashmap_get ret: %d\n", ret);
@@ -172,7 +172,7 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 				hashmap_add_one_fd(mymap, key, watcher->fd);
 			} else {
 				char *key1 = malloc(cmd->key_len);
-				data = malloc(sizeof(data_node_t));
+				data = malloc(sizeof(iproxy_data_node_t));
 				data->value = malloc(1);
 				data->fd[0] = 1;
 				data->fd[1] = watcher->fd;
@@ -310,8 +310,7 @@ int main(int argc, char const *argv[])
 	if (ipc_serverfd > 0)
 		close(ipc_serverfd);
 
-	unlink(IPC_SOCK_PATH);
-
+	unlink(IPROXY_IPC_SOCK_PATH);
 
 	hashmap_free_free_free(mymap);
 

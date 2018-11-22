@@ -47,8 +47,8 @@ int hashmap_value_init(map_t mymap)
 		offset += (value_len + key_len);
 
 		char *key1 = malloc(key_len);
-		data_node_t *data = malloc(sizeof(data_node_t));
-		memset(data, 0, sizeof(data_node_t));
+		iproxy_data_node_t *data = malloc(sizeof(iproxy_data_node_t));
+		memset(data, 0, sizeof(iproxy_data_node_t));
 		data->value = malloc(value_len);
 		snprintf(key1, key_len, "%s", key);
 		snprintf(data->value, value_len, "%s", value);

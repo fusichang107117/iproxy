@@ -26,7 +26,7 @@ int iproxyd_connect(void)
 	memset(&addr, 0, sizeof(struct sockaddr_un));
 
 	addr.sun_family = AF_UNIX;
-	strncpy(addr.sun_path, IPC_SOCK_PATH, sizeof(addr.sun_path) - 1);
+	strncpy(addr.sun_path, IPROXY_IPC_SOCK_PATH, sizeof(addr.sun_path) - 1);
 
 	int ret = connect(sockfd, (const struct sockaddr *) &addr, sizeof(struct sockaddr_un));
 	if (ret == -1) {
@@ -74,7 +74,7 @@ static void iproxy_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int 
 	if (ret != (cmd_len + ack->key_len + ack->value_len) || ack->key_len <= 1 || ack->id != IPROXY_PUB)
 		return;
 
-	func_node_t *func_node;
+	iproxy_func_node_t *func_node;
 	ret = hashmap_get(mymap, key, (void**)(&func_node));
 	if (ret == MAP_OK) {
 		func_node->func(value);
@@ -285,8 +285,8 @@ int iproxy_sub(char *key, void (*func)(char *))
 
 	int len = write(iproxy_sockfd, buf, total_len);
 
-	func_node_t *func_node;
-	func_node = malloc(sizeof(func_node_t));
+	iproxy_func_node_t *func_node;
+	func_node = malloc(sizeof(iproxy_func_node_t));
 	func_node->func = func;
 
 	char *key1 = malloc(cmd.key_len);

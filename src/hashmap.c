@@ -344,7 +344,7 @@ int hashmap_update_one_value(map_t in, char* key, char* value){
 		int in_use = m->data[curr].in_use;
 		if (in_use == 1){
 			if (strcmp(m->data[curr].key,key)==0){
-				data_node_t *data = m->data[curr].data;
+				iproxy_data_node_t *data = m->data[curr].data;
 
 				printf("%s(), %d, %s, %s\n", __func__, __LINE__, data->value, value);
 				free(data->value);
@@ -380,7 +380,7 @@ int hashmap_add_one_fd(map_t in, char* key, int fd){
 		int in_use = m->data[curr].in_use;
 		if (in_use == 1){
 			if (strcmp(m->data[curr].key,key)==0){
-				data_node_t *data = m->data[curr].data;
+				iproxy_data_node_t *data = m->data[curr].data;
 				for (j = 1; j <= data->fd[0]; j++) {
 					if (fd == data->fd[j]) {
 						return MAP_REPEAT;
@@ -420,7 +420,7 @@ int hashmap_remove_one_fd(map_t in, char* key, int fd){
 		int in_use = m->data[curr].in_use;
 		if (in_use == 1){
 			if (strcmp(m->data[curr].key,key)==0){
-				data_node_t *data = m->data[curr].data;
+				iproxy_data_node_t *data = m->data[curr].data;
 				for (j = 1; j <= data->fd[0]; j++) {
 					if (data->fd[j] == fd) {
 						for (k = j; k < data->fd[0]; k++)
@@ -459,7 +459,7 @@ int hashmap_remove_spec_fd(map_t in,int fd){
 	for(i = 0; i<m->table_size; i++){
 		int in_use = m->data[i].in_use;
 		if (in_use == 1){
-			data_node_t *data = m->data[i].data;
+			iproxy_data_node_t *data = m->data[i].data;
 			for (j = 1; j <= data->fd[0]; j++) {
 				if (data->fd[j] == fd) {
 					for (k = j; k < data->fd[0]; k++)
@@ -493,7 +493,7 @@ int hashmap_get_from_index(map_t in, int  index, char *buf, int buf_len, int *re
 	/* Linear probing */
 	for(i = index; i< m->table_size; i++) {
 		if(m->data[i].in_use != 0) {
-			data_node_t *data = m->data[i].data;
+			iproxy_data_node_t *data = m->data[i].data;
 			char *key = m->data[i].key;
 			int key_len = strlen(key) + 1;
 			int value_len = strlen(data->value) + 1;
@@ -568,7 +568,7 @@ int hashmap_remove_free(map_t in, char* key){
 		if (in_use == 1){
 			if (strcmp(m->data[curr].key,key)==0){
 				/* Blank out the fields */
-				data_node_t *data = m->data[curr].data;
+				iproxy_data_node_t *data = m->data[curr].data;
 				free(data->value);
 				free(data);
 				free(m->data[curr].key);
@@ -609,7 +609,7 @@ int hashmap_remove(map_t in, char* key){
 		if (in_use == 1){
 			if (strcmp(m->data[curr].key,key)==0){
 				/* Blank out the fields */
-				data_node_t *data = m->data[curr].data;
+				iproxy_data_node_t *data = m->data[curr].data;
 				free(data);
 				free(m->data[curr].key);
 
@@ -643,7 +643,7 @@ void hashmap_free_free(map_t in){
 	/* Linear probing */
 	for(i = 0; i< m->table_size; i++) {
 		if(m->data[i].in_use != 0) {
-			data_node_t *data = m->data[i].data;
+			iproxy_data_node_t *data = m->data[i].data;
 			free(m->data[i].key);
 			free(data);
 		}
@@ -661,7 +661,7 @@ void hashmap_free_free_free(map_t in){
 	/* Linear probing */
 	for(i = 0; i< m->table_size; i++) {
 		if(m->data[i].in_use != 0) {
-			data_node_t *data = m->data[i].data;
+			iproxy_data_node_t *data = m->data[i].data;
 			free(m->data[i].key);
 			free(data->value);
 			free(data);
