@@ -53,7 +53,7 @@ int hashmap_value_init(map_t mymap)
 		snprintf(key1, key_len, "%s", key);
 		snprintf(data->value, value_len, "%s", value);
 
-		printf("<%s>\t\t\t<%s>\n", key1, value);
+		//printf("<%s>\t\t\t<%s>\n", key1, value);
 
 		hashmap_put(mymap, key1, data);
 	} while (offset < file_len);

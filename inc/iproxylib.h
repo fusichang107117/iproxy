@@ -11,5 +11,8 @@ int iproxy_unset(char *key);
 int iproxy_sync(void);
 int iproxy_list(void);
 
+int iproxy_factory_get(char *key, char *value);
+int iproxy_factory_list(void);
+
 
 #endif

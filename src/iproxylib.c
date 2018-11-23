@@ -408,3 +408,93 @@ int iproxy_list(void)
 	close(sockfd);
 	return 0;
 }
+
+int iproxy_factory_get(char *key, char *value)
+{
+	if (!key || *key == '\0' || !value ) {
+		printf("key and value must not be null\n");
+		return -1;
+	}
+
+	int key_len = strlen(key) + 1;
+	if (key_len > MAX_KEY_LEN ) {
+		printf("key max length is %d\n", MAX_KEY_LEN);
+		return -1;
+	}
+
+	iproxy_cmd_t cmd;
+	char buf[1024] = {'\0'};
+
+	int cmd_len = sizeof(cmd);
+
+	memcpy(cmd.magic,IPROXY,4);
+	cmd.id = FACTORY_GET;
+	cmd.key_len = key_len;
+	cmd.value_len = 0;
+	memcpy(buf,(char *)&cmd, cmd_len);
+
+	snprintf(buf + cmd_len,cmd.key_len,"%s",key);
+
+	int total_len = cmd_len + cmd.key_len;
+
+	int sockfd = iproxyd_connect();
+	if (sockfd < 0) {
+		return -1;
+	}
+
+	usleep(1000);
+	int len = write(sockfd, buf, total_len);
+
+	int ret = read(sockfd, buf, 1024);
+
+	close(sockfd);
+
+	snprintf(value, 1024, "%s",buf);
+
+	//printf("GET: value: %s\n", buf);
+	return 0;
+}
+
+int iproxy_factory_list(void)
+{
+	iproxy_cmd_t cmd;
+	char buf[1024] = {'\0'};
+
+	int cmd_len = sizeof(cmd);
+
+	memcpy(cmd.magic,IPROXY,4);
+	cmd.id = FACTORY_LIST;
+	cmd.key_len = 0;
+	cmd.value_len = 0;
+	memcpy(buf,(char *)&cmd, cmd_len);
+
+	int total_len = cmd_len + cmd.key_len;
+
+	int sockfd = iproxyd_connect();
+	if (sockfd < 0) {
+		return -1;
+	}
+
+	usleep(1000);
+	int ret = write(sockfd, buf, total_len);
+	char *key, *value;
+	int key_len, value_len;
+
+	do {
+		int offset = 0;
+		memset(buf, 0, 1024);
+		ret = read(sockfd, buf, 1024);
+		while(ret > offset) {
+			key = buf + offset;
+			key_len = strlen(key) + 1;
+			value = key + key_len;
+			value_len = strlen(value) + 1;
+			offset += (key_len + value_len);
+
+			printf("<%s>\t\t\t<%s>\n", key, value);
+		}
+	} while (ret > 0);
+
+	close(sockfd);
+	return 0;
+}

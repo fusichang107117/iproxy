@@ -31,6 +31,8 @@ typedef enum
 	IPROXY_LIST,
 	IPROXY_SYNC,
 	IPROXY_PUB,
+	FACTORY_GET,
+	FACTORY_LIST,
 }iproxy_cmd_id_t;
 
 typedef struct

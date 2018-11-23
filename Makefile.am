@@ -9,10 +9,10 @@ libiproxydir=@includedir@
 
 include_HEADERS=./inc/*.h
 
-bin_PROGRAMS = iproxyd iproxy iproxy_example
+bin_PROGRAMS = iproxyd iproxy iproxy_example factory
 
 iproxyd_DEPENDENCIES=libiproxy.la
-iproxyd_SOURCES = src/iproxyd.c src/backend.c
+iproxyd_SOURCES = src/iproxyd.c src/backend.c src/nvram.c
 iproxyd_LDADD = libiproxy.la
 iproxyd_LDFLAGS = -lev
 iproxyd_CFLAGS = -I./inc
@@ -34,6 +34,13 @@ iproxy_LDFLAGS = -lev
 iproxy_CFLAGS = -I./inc
 
 iproxydir=@includedir@
+
+factory_DEPENDENCIES=libiproxy.la
+factory_SOURCES = src/factory.c
+factory_LDADD = libiproxy.la
+factory_CFLAGS = -I./inc
+
+factorydir=@includedir@
 
 distclean-local:
 	rm -rf Makefile.in compile autom4te.cache aclocal.m4 config.h.in configure depcomp install-sh missing config.guess config.sub ltmain.sh

@@ -13,11 +13,13 @@
 #include "iproxy.h"
 #include "hashmap.h"
 #include "backend.h"
+#include "nvram.h"
 
 struct ev_async async;
 struct ev_periodic sync_tick;
 
 map_t mymap;
+nvram_handle_t *factory_nv;
 
 int ipc_client_count = 0;
 volatile bool sync_flag = false;
@@ -224,6 +226,38 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 			close_flag = true;
 		}
 		break;
+		case FACTORY_GET:
+		{
+			printf("FACTORY_GET\n");
+			iproxy_data_node_t *data;
+			ret = hashmap_get(factory_nv->map, key, (void**)(&data));
+			//printf("hashmap_get ret: %d\n", ret);
+			if (ret != MAP_OK) {
+				printf("%s not found\n", key);
+				buf[0]='\0';
+			} else {
+				//printf("GET:key: %s\n", key);
+				//printf("GET:value: %s\n", data->value);
+				snprintf(buf, MAX_BUF_SIZE, "%s", data->value);
+			}
+			write(watcher->fd,buf, strlen(buf) + 1);
+			close_flag = true;
+		}
+		break;
+		case FACTORY_LIST:
+		{
+			printf("FACTORY_LIST\n");
+			int index = 0;
+			do {
+				int real_len = 0;
+				memset(buf, 0, MAX_BUF_SIZE);
+				index = hashmap_get_from_index(factory_nv->map, index, buf, MAX_BUF_SIZE, &real_len);
+				//printf("index: %d, real_len: %d\n", index, real_len);
+				write(watcher->fd, buf, real_len);
+			} while (index != MAP_END);
+			close_flag = true;
+		}
+		break;
 		default:
 			printf("error commid ID: %d\n", cmd->id);
 		break;
@@ -302,6 +336,7 @@ int main(int argc, char const *argv[])
 	mymap = hashmap_new();
 
 	hashmap_value_init(mymap);
+	factory_nv = backend_nvram_init(1);
 
 	ev_run(loop, 0);
 
@@ -311,6 +346,8 @@ int main(int argc, char const *argv[])
 		close(ipc_serverfd);
 
 	unlink(IPROXY_IPC_SOCK_PATH);
+
+	backend_nvram_destory(factory_nv);
 
 	hashmap_free_free_free(mymap);
 
