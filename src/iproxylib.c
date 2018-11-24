@@ -8,11 +8,78 @@
 #include "iproxylib.h"
 #include "hashmap.h"
 
-static int iproxy_sockfd = -1;
-static struct ev_periodic periodic_tick;
-static struct ev_io iproxy_client;
+iproxy_handle_t *iproxy_local_handle;
 
-map_t mymap;
+static void iproxy_handle_set(iproxy_handle_t *iproxy_handle)
+{
+	iproxy_local_handle = iproxy_handle;
+}
+
+static iproxy_handle_t *iproxy_handle_get(void)
+{
+	return iproxy_local_handle;
+}
+
+static void periodic_cb(struct ev_loop *loop, ev_periodic *w, int revents)
+{
+	//log_debug("%s(), ot_sockfd: %d\n", __func__, __LINE__, ot_sockfd);
+	iproxy_handle_t *iproxy_handle = iproxy_handle_get();
+	if (iproxy_handle->sockfd < 0)
+		iproxy_handle->sockfd = iproxyd_connect();
+}
+
+static void iproxy_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int revents)
+{
+	char buf[MAX_BUF_SIZE] = { 0 };
+	int cmd_len = sizeof(iproxy_cmd_t);
+
+	iproxy_handle_t *iproxy_handle = iproxy_handle_get();
+
+	int ret = read(watcher->fd, buf, MAX_BUF_SIZE);
+	//printf("%s(), ret: %d\n", __func__, ret);
+	if (ret <= 0) {
+		perror("read");
+		ev_io_stop(loop, watcher);
+		close(watcher->fd);
+		iproxy_handle->sockfd = -1;
+		return;
+	}
+	buf[ret] = '\0';
+	//printf("ret:%d\n", ret);
+
+	iproxy_cmd_t *ack = (iproxy_cmd_t *)buf;
+	//printf("magic:%s\n", ack->magic);
+	//printf("ID:%d\n", ack->id);
+	//printf("key_len:%d\n", ack->key_len);
+	//printf("value_len:%d\n", ack->value_len);
+
+	char *key = buf + cmd_len;
+	char *value = buf + cmd_len + ack->key_len;
+	//printf("key:%s\n", key);
+	//printf("value:%s\n", value);
+
+	if (ret != (cmd_len + ack->key_len + ack->value_len) || ack->key_len <= 1 || ack->id != IPROXY_PUB)
+		return;
+
+	iproxy_func_node_t *func_node;
+	ret = hashmap_get(iproxy_handle->hashmap, key, (void**)(&func_node));
+	if (ret == MAP_OK) {
+		func_node->func(value);
+	}
+}
+
+void iproxy_close(iproxy_handle_t *iproxy_handle)
+{
+	if (iproxy_handle) {
+		ev_io_stop(EV_DEFAULT_ &iproxy_handle->iproxy_client);
+		ev_periodic_stop(EV_DEFAULT_ &iproxy_handle->periodic_tick);
+		if (iproxy_handle->sockfd >= 0)
+			close(iproxy_handle->sockfd);
+		hashmap_free_free(iproxy_handle->hashmap);
+		free(iproxy_handle);
+	}
+	iproxy_handle_set(NULL);
+}
 
 int iproxyd_connect(void)
 {
@@ -36,77 +103,32 @@ int iproxyd_connect(void)
 	return sockfd;
 }
 
-static void periodic_cb(struct ev_loop *loop, ev_periodic *w, int revents)
+iproxy_handle_t *iproxy_open(void)
 {
-	//log_debug("%s(), ot_sockfd: %d\n", __func__, __LINE__, ot_sockfd);
-	if (iproxy_sockfd < 0)
-		iproxy_sockfd = iproxyd_connect();
-}
-
-static void iproxy_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int revents)
-{
-	char buf[MAX_BUF_SIZE] = { 0 };
-	int cmd_len = sizeof(iproxy_cmd_t);
-
-	int ret = read(watcher->fd, buf, MAX_BUF_SIZE);
-	//printf("%s(), ret: %d\n", __func__, ret);
-	if (ret <= 0) {
-		perror("read");
-		ev_io_stop(loop, watcher);
-		close(watcher->fd);
-		iproxy_sockfd = -1;
-		return;
+	int sockfd = iproxyd_connect();
+	if (sockfd < 0) {
+		return NULL;
 	}
-	buf[ret] = '\0';
-	//printf("ret:%d\n", ret);
-
-	iproxy_cmd_t *ack = (iproxy_cmd_t *)buf;
-	//printf("magic:%s\n", ack->magic);
-	//printf("ID:%d\n", ack->id);
-	//printf("key_len:%d\n", ack->key_len);
-	//printf("value_len:%d\n", ack->value_len);
-
-	char *key = buf + cmd_len;
-	char *value = buf + cmd_len + ack->key_len;
-	//printf("key:%s\n", key);
-	//printf("value:%s\n", value);
-
-	if (ret != (cmd_len + ack->key_len + ack->value_len) || ack->key_len <= 1 || ack->id != IPROXY_PUB)
-		return;
-
-	iproxy_func_node_t *func_node;
-	ret = hashmap_get(mymap, key, (void**)(&func_node));
-	if (ret == MAP_OK) {
-		func_node->func(value);
-	}
-}
-
-int iproxy_open(void)
-{
-	iproxy_sockfd = iproxyd_connect();
-	if (iproxy_sockfd < 0) {
-		return -1;
-	}
-
-	mymap = hashmap_new();
-
 	printf("connect iproxyd success...\n");
-	ev_periodic_init(&periodic_tick, periodic_cb, 0., 5., 0);
-	ev_periodic_start(EV_DEFAULT_ &periodic_tick);
 
-	ev_io_init(&iproxy_client, iproxy_recv_handle, iproxy_sockfd, EV_READ);
-	ev_io_start(EV_DEFAULT_ &iproxy_client);
+	iproxy_handle_t *iproxy_handle = (iproxy_handle_t *)malloc(sizeof(iproxy_handle_t));
+	iproxy_handle->hashmap = hashmap_new();
+	if (!iproxy_handle->hashmap) {
+		printf("new iproxy_handle_t hashmap error.\n");
+		iproxy_close(iproxy_handle);
+		return NULL;
+	}
 
-	return iproxy_sockfd;
-}
+	iproxy_handle->sockfd = sockfd;
+	ev_periodic_init(&iproxy_handle->periodic_tick, periodic_cb, 0., 5., 0);
+	ev_periodic_start(EV_DEFAULT_ &iproxy_handle->periodic_tick);
 
-void iproxy_close(void)
-{
-	ev_io_stop(EV_DEFAULT_ &iproxy_client);
-	ev_periodic_stop(EV_DEFAULT_ &periodic_tick);
-	if (iproxy_sockfd >= 0)
-		close(iproxy_sockfd);
-	hashmap_free_free(mymap);
+	ev_io_init(&iproxy_handle->iproxy_client, iproxy_recv_handle, sockfd, EV_READ);
+	ev_io_start(EV_DEFAULT_ &iproxy_handle->iproxy_client);
+
+	iproxy_handle_set(iproxy_handle);
+
+	return iproxy_handle;
 }
 
 int iproxy_set(char *key, char *value)
@@ -255,10 +277,10 @@ int iproxy_get(char *key, char *value)
 	return 0;
 }
 
-int iproxy_sub(char *key, void (*func)(char *))
+int iproxy_sub(iproxy_handle_t *iproxy_handle, char *key, void (*func)(char *))
 {
-	if (!key || *key == '\0' ) {
-		printf("key must not be null\n");
+	if (!key || *key == '\0' || !iproxy_handle) {
+		printf("key or handle must not be null\n");
 		return -1;
 	}
 
@@ -283,7 +305,7 @@ int iproxy_sub(char *key, void (*func)(char *))
 
 	int total_len = cmd_len + cmd.key_len;
 
-	int len = write(iproxy_sockfd, buf, total_len);
+	int len = write(iproxy_handle->sockfd, buf, total_len);
 
 	iproxy_func_node_t *func_node;
 	func_node = malloc(sizeof(iproxy_func_node_t));
@@ -292,7 +314,7 @@ int iproxy_sub(char *key, void (*func)(char *))
 	char *key1 = malloc(cmd.key_len);
 	snprintf(key1, cmd.key_len, "%s", key);
 
-	int ret = hashmap_put(mymap, key1, func_node);
+	int ret = hashmap_put(iproxy_handle->hashmap, key1, func_node);
 	//printf("hashmap_put ret: %d\n", ret);
 
 	printf("SUB: key: %s\n", key);
@@ -304,10 +326,10 @@ int iproxy_sub_and_get(char *key, char *value)
 	return 0;
 }
 
-int iproxy_unsub(char *key)
+int iproxy_unsub(iproxy_handle_t *iproxy_handle, char *key)
 {
-	if (!key || *key == '\0') {
-		printf("key must not be null\n");
+	if (!key || *key == '\0' || !iproxy_handle) {
+		printf("key and handle must not be null\n");
 		return -1;
 	}
 
@@ -331,9 +353,9 @@ int iproxy_unsub(char *key)
 
 	int total_len = cmd_len + cmd.key_len;
 
-	int len = write(iproxy_sockfd, buf, total_len);
+	int len = write(iproxy_handle->sockfd, buf, total_len);
 
-	int ret = hashmap_remove(mymap, key);
+	int ret = hashmap_remove(iproxy_handle->hashmap, key);
 	//printf("hashmap_put ret: %d\n", ret);
 
 	printf("UNSUB: key: %s\n", key);

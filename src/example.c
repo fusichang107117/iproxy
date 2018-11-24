@@ -11,6 +11,7 @@
 
 struct ev_async async;
 struct ev_periodic periodic_tick;
+iproxy_handle_t *iproxy_handle;
 
 char key[64];
 
@@ -42,7 +43,7 @@ static void periodic_cb(struct ev_loop *loop, ev_periodic *watcher, int revents)
 
 	if (flag) {
 
-		iproxy_sub(key, callback1);
+		iproxy_sub(iproxy_handle, key, callback1);
 
 		//iproxy_sub("key2", callback2);
 
@@ -69,8 +70,8 @@ int main(int argc, char const *argv[])
 
 	printf("sub key: %s\n", key);
 
-	int fd = iproxy_open();
-	if (fd < 0) {
+	iproxy_handle= iproxy_open();
+	if (!iproxy_handle) {
 		printf("iproxyd connect error\n");
 		return -1;
 	}
@@ -93,7 +94,7 @@ int main(int argc, char const *argv[])
 
 	printf("%s(),%d\n",__func__, __LINE__);
 
-	iproxy_close();
+	iproxy_close(iproxy_handle);
 	ev_default_destroy();
 	return 0;
 }

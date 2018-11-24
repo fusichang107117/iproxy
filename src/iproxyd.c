@@ -18,8 +18,8 @@
 struct ev_async async;
 struct ev_periodic sync_tick;
 
-map_t mymap;
 nvram_handle_t *factory_nv;
+file_handle_t *file_handle;
 
 int ipc_client_count = 0;
 volatile bool sync_flag = false;
@@ -58,7 +58,7 @@ static void sync_cb(struct ev_loop *loop, ev_periodic *watcher, int revents)
 {
 	ev_periodic_stop(EV_DEFAULT_ watcher);
 	printf("sync to file...\n");
-	hashmap_sync(mymap);
+	backend_file_sync(file_handle);
 	sync_flag = false;
 }
 
@@ -76,11 +76,13 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 	int ret;
 	bool close_flag = false;
 
+	map_t hashmap = file_handle->hashmap;
+
 	int recv_len = read(watcher->fd, buf, MAX_BUF_SIZE);
 	if (recv_len <= 0) {
 		//printf("errno: %d, recv_len: %d\n",errno, recv_len);
 		//if (errno == 2)
-			hashmap_remove_spec_fd(mymap, watcher->fd);
+			hashmap_remove_spec_fd(hashmap, watcher->fd);
 		perror("read");
 		close_fd(watcher);
 		return;
@@ -106,7 +108,7 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 		{
 			iproxy_data_node_t *data = NULL;
 			printf("IPROXY_SET\n");
-			ret = hashmap_get(mymap, key, (void**)(&data));
+			ret = hashmap_get(hashmap, key, (void**)(&data));
 			if (ret == MAP_OK) {
 				if (memcmp(data->value, value, cmd->value_len) == 0) {
 					printf("value is same, ignore it\n");
@@ -115,7 +117,7 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 
 					char *value1 = malloc(cmd->value_len);
 					snprintf(value1, cmd->value_len, "%s", value);
-					ret = hashmap_update_one_value(mymap, key, value1);
+					ret = hashmap_update_one_value(hashmap, key, value1);
 
 					iproxy_cmd_t *ack = (iproxy_cmd_t *)buf;
 					ack->id = IPROXY_PUB;
@@ -136,7 +138,7 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 				
 				snprintf(key1, cmd->key_len, "%s", key);
 				snprintf(data->value, cmd->value_len, "%s", value);
-				ret = hashmap_put(mymap, key1, data);
+				ret = hashmap_put(hashmap, key1, data);
 				if (sync_flag == false) {
 					sync_flag = true;
 					ev_periodic_start(loop, &sync_tick);
@@ -150,7 +152,7 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 		{
 			printf("IPROXY_GET\n");
 			iproxy_data_node_t *data;
-			ret = hashmap_get(mymap, key, (void**)(&data));
+			ret = hashmap_get(hashmap, key, (void**)(&data));
 			//printf("hashmap_get ret: %d\n", ret);
 			if (ret != MAP_OK) {
 				printf("%s not found\n", key);
@@ -168,10 +170,10 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 		{
 			iproxy_data_node_t *data;
 			printf("IPROXY_SUB\n");
-			ret = hashmap_get(mymap, key, (void**)(&data));
+			ret = hashmap_get(hashmap, key, (void**)(&data));
 			printf("hashmap_get ret: %d\n", ret);
 			if (ret == MAP_OK) {
-				hashmap_add_one_fd(mymap, key, watcher->fd);
+				hashmap_add_one_fd(hashmap, key, watcher->fd);
 			} else {
 				char *key1 = malloc(cmd->key_len);
 				data = malloc(sizeof(iproxy_data_node_t));
@@ -181,7 +183,7 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 
 				snprintf(key1, cmd->key_len, "%s", key);
 				snprintf(data->value, 1, "%s", "");
-				ret = hashmap_put(mymap, key1, data);
+				ret = hashmap_put(hashmap, key1, data);
 				//printf("hashmap_put ret: %d\n", ret);
 			}
 		}
@@ -191,13 +193,13 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 		case IPROXY_UNSUB:
 		{
 			printf("IPROXY_UNSUB\n");
-			hashmap_remove_one_fd(mymap, key, watcher->fd);
+			hashmap_remove_one_fd(hashmap, key, watcher->fd);
 		}
 		break;
 		case IPROXY_UNSET:
 		{
 			printf("IPROXY_UNSET\n");
-			hashmap_remove_free(mymap, key);
+			hashmap_remove_free(hashmap, key);
 			close_flag = true;
 			if (sync_flag == false) {
 				sync_flag = true;
@@ -219,7 +221,7 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 			do {
 				int real_len = 0;
 				memset(buf, 0, MAX_BUF_SIZE);
-				index = hashmap_get_from_index(mymap, index, buf, MAX_BUF_SIZE, &real_len);
+				index = hashmap_get_from_index(hashmap, index, buf, MAX_BUF_SIZE, &real_len);
 				//printf("index: %d, real_len: %d\n", index, real_len);
 				write(watcher->fd, buf, real_len);
 			} while (index != MAP_END);
@@ -333,13 +335,16 @@ int main(int argc, char const *argv[])
 	ev_async_init(&async, sig_stop_ev);
 	ev_async_start(loop, &async);
 
-	mymap = hashmap_new();
-
-	hashmap_value_init(mymap);
-	factory_nv = backend_nvram_init(1);
+	file_handle = backend_file_init();
+	if (!file_handle) {
+		printf("create file_handle error\n");
+		goto OUT;
+	}
+	//factory_nv = backend_nvram_init(1);
 
 	ev_run(loop, 0);
 
+OUT:
 	ev_default_destroy();
 
 	if (ipc_serverfd > 0)
@@ -347,9 +352,10 @@ int main(int argc, char const *argv[])
 
 	unlink(IPROXY_IPC_SOCK_PATH);
 
-	backend_nvram_destory(factory_nv);
+	backend_file_destory(file_handle);
+	//backend_nvram_destory(factory_nv);
 
-	hashmap_free_free_free(mymap);
+
 
 	return 0;
 }

@@ -6,13 +6,27 @@
 #include "iproxy.h"
 #include "backend.h"
 
-int hashmap_value_init(map_t mymap)
+void backend_file_destory(file_handle_t *file_handle)
 {
-	map_t hashmap = mymap;
+	if(file_handle) {
+		hashmap_free_free_free(file_handle->hashmap);
+		free(file_handle);
+	}
+}
+
+file_handle_t *backend_file_init(void)
+{
+	file_handle_t *file_handle = (file_handle_t *)malloc(sizeof(file_handle_t));
+	file_handle->hashmap = hashmap_new();
+	if (!file_handle->hashmap) {
+		printf("new file_handle_t hashmap error.\n");
+		return NULL;
+	}
+
 	FILE *fp = fopen(IPROXY_FILE_PATH, "rb");
 	if (!fp) {
 		printf("file not exsit\n");
-		return -1;
+		return file_handle;
 	}
 
 	fseek(fp, 0, SEEK_END);
@@ -25,12 +39,10 @@ int hashmap_value_init(map_t mymap)
 	fclose(fp);
 	if (file_len != read_len || file_len == 0) {
 		printf("file read error %d(%d)\n", file_len, read_len);
-		free(buf);
-		return -1;
+		goto OUT;
 	}
 
 	sync_head_t *sync_head = (sync_head_t *)buf;
-
 	printf("INIT: magic: %s, crc: %lu\n", sync_head->magic, sync_head->crc);
 
 	int offset = sizeof(sync_head_t);
@@ -55,16 +67,16 @@ int hashmap_value_init(map_t mymap)
 
 		//printf("<%s>\t\t\t<%s>\n", key1, value);
 
-		hashmap_put(mymap, key1, data);
+		hashmap_put(file_handle->hashmap, key1, data);
 	} while (offset < file_len);
-
+OUT:
 	free(buf);
-	return 0;
+	return file_handle;
 }
 
-int hashmap_sync(map_t mymap)
+int backend_file_sync(file_handle_t *file_handle)
 {
-	map_t hashmap = mymap;
+	map_t hashmap = file_handle->hashmap;
 	FILE *fp = fopen(IPROXY_FILE_PATH, "wb");
 	if (!fp) {
 		printf("file not exsit\n");
