@@ -8,22 +8,10 @@
 #include "iproxylib.h"
 #include "hashmap.h"
 
-iproxy_handle_t *iproxy_local_handle;
-
-static void iproxy_handle_set(iproxy_handle_t *iproxy_handle)
-{
-	iproxy_local_handle = iproxy_handle;
-}
-
-static iproxy_handle_t *iproxy_handle_get(void)
-{
-	return iproxy_local_handle;
-}
-
-static void periodic_cb(struct ev_loop *loop, ev_periodic *w, int revents)
+static void periodic_cb(struct ev_loop *loop, ev_periodic *watcher, int revents)
 {
 	//log_debug("%s(), ot_sockfd: %d\n", __func__, __LINE__, ot_sockfd);
-	iproxy_handle_t *iproxy_handle = iproxy_handle_get();
+	iproxy_handle_t *iproxy_handle = (iproxy_handle_t *)watcher->data;
 	if (iproxy_handle->sockfd < 0)
 		iproxy_handle->sockfd = iproxyd_connect();
 }
@@ -33,7 +21,7 @@ static void iproxy_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int 
 	char buf[MAX_BUF_SIZE] = { 0 };
 	int cmd_len = sizeof(iproxy_cmd_t);
 
-	iproxy_handle_t *iproxy_handle = iproxy_handle_get();
+	iproxy_handle_t *iproxy_handle = (iproxy_handle_t *)watcher->data;
 
 	int ret = read(watcher->fd, buf, MAX_BUF_SIZE);
 	//printf("%s(), ret: %d\n", __func__, ret);
@@ -78,7 +66,6 @@ void iproxy_close(iproxy_handle_t *iproxy_handle)
 		hashmap_free_free(iproxy_handle->hashmap);
 		free(iproxy_handle);
 	}
-	iproxy_handle_set(NULL);
 }
 
 int iproxyd_connect(void)
@@ -121,12 +108,12 @@ iproxy_handle_t *iproxy_open(void)
 
 	iproxy_handle->sockfd = sockfd;
 	ev_periodic_init(&iproxy_handle->periodic_tick, periodic_cb, 0., 5., 0);
+	iproxy_handle->periodic_tick.data = iproxy_handle;
 	ev_periodic_start(EV_DEFAULT_ &iproxy_handle->periodic_tick);
 
 	ev_io_init(&iproxy_handle->iproxy_client, iproxy_recv_handle, sockfd, EV_READ);
+	iproxy_handle->iproxy_client.data = iproxy_handle;
 	ev_io_start(EV_DEFAULT_ &iproxy_handle->iproxy_client);
-
-	iproxy_handle_set(iproxy_handle);
 
 	return iproxy_handle;
 }
