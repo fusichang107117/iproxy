@@ -118,104 +118,105 @@ iproxy_handle_t *iproxy_open(void)
 	return iproxy_handle;
 }
 
-int iproxy_set(char *key, char *value)
+static char *construct_packet(iproxy_cmd_id_t cmd_id, char *key, char *value, int *length)
 {
-	if (!key || *key == '\0') {
-		printf("key must not be null\n");
-		return -1;
-	}
+	int key_len=0, value_len=0;
 
-	int key_len = strlen(key) + 1;
-	int value_len = strlen(value) + 1;
+	if (key)
+		key_len= strlen(key) + 1;
+	if (value)
+		value_len = strlen(value) + 1;
+
 	if (key_len > MAX_KEY_LEN || value_len > MAX_VALUE_LEN) {
 		printf("key max length is %d, value max length is %d\n", MAX_KEY_LEN, MAX_VALUE_LEN);
+		return NULL;
+	}
+
+	iproxy_cmd_t cmd;
+
+	int cmd_len = sizeof(cmd);
+
+	memcpy(cmd.magic,IPROXY,4);
+	cmd.id = cmd_id;
+	cmd.key_len = key_len;
+	cmd.value_len = value_len;
+
+	int total_len = key_len + value_len + cmd_len;
+	char *buf = malloc(total_len);
+	if (!buf) {
+		printf("%s, %d,malloc error\n", __func__, __LINE__);
+		return NULL;
+	}
+
+	memcpy(buf,(char *)&cmd, cmd_len);
+	if (key)
+		snprintf(buf + cmd_len, key_len,"%s",key);
+	if(value)
+		snprintf(buf + cmd_len + key_len, value_len,"%s",value);
+
+	*length = total_len;
+	return buf;
+}
+
+static int iproxy_send(iproxy_cmd_id_t cmd_id, char *key, char *value)
+{
+	int length = 0;
+	char *send_buf = construct_packet(cmd_id, key, value, &length);
+	if (!send_buf) {
+		printf("construct_packet error\n");
 		return -1;
 	}
 
 	int sockfd = iproxyd_connect();
 	if (sockfd < 0) {
+		free(send_buf);
+		return -1;
+	}
+	write(sockfd, send_buf, length);
+	close(sockfd);
+	free(send_buf);
+	return 0;
+}
+
+static int iproxy_send_recv(iproxy_cmd_id_t cmd_id, char *key, char *value)
+{
+	int length = 0;
+	char *send_buf = construct_packet(cmd_id, key, NULL, &length);
+	if (!send_buf) {
+		printf("construct_packet error\n");
 		return -1;
 	}
 
-	iproxy_cmd_t cmd;
-	char buf[1024] = {'\0'};
-
-	int cmd_len = sizeof(cmd);
-
-	memcpy(cmd.magic,IPROXY,4);
-	cmd.id = IPROXY_SET;
-	cmd.key_len = key_len;
-	cmd.value_len = value_len;
-	memcpy(buf,(char *)&cmd, cmd_len);
-
-	//printf("int: %d\n", sizeof(int));
-/*	printf("cmd_len: %d\n", cmd_len);
-	printf("key_len: %d\n", cmd.key_len);
-	printf("key: %s\n", key);
-	printf("value_len: %d\n", cmd.value_len);
-	printf("value: %s\n", value);*/
-
-	snprintf(buf + cmd_len,cmd.key_len,"%s",key);
-	if(value) {
-		snprintf(buf + cmd_len + cmd.key_len,cmd.value_len,"%s",value);
+	int sockfd = iproxyd_connect();
+	if (sockfd < 0) {
+		free(send_buf);
+		return -1;
 	}
+	write(sockfd, send_buf, length);
+	free(send_buf);
 
-	printf("SET: %s, value: %s\n", key, value);
-	int total_len = cmd_len + cmd.key_len + cmd.value_len;
-
-	int len = write(sockfd, buf, total_len);
+	int recv_len = read(sockfd, value, MAX_VALUE_LEN);
 
 	close(sockfd);
-	//printf("send: %d, str_len: %d\n", len, total_len);
-	return (len == (total_len + 1)) ? 0 : -1;
+	return (recv_len >= 0) ? 0 : -1;
+}
+
+int iproxy_set(char *key, char *value)
+{
+	if (!key || *key == '\0' || !value ) {
+		printf("key and value must not be null\n");
+		return -1;
+	} else
+		return iproxy_send(IPROXY_SET, key, value);
 }
 
 int iproxy_unset(char *key)
 {
 	if (!key || *key == '\0') {
-		printf("key must not be null\n");
+		printf("key and value must not be null\n");
 		return -1;
-	}
-
-	int key_len = strlen(key) + 1;
-	if (key_len > MAX_KEY_LEN) {
-		printf("key max length is %d\n", MAX_KEY_LEN);
-		return -1;
-	}
-
-	int sockfd = iproxyd_connect();
-	if (sockfd < 0) {
-		return -1;
-	}
-
-	iproxy_cmd_t cmd;
-	char buf[1024] = {'\0'};
-
-	int cmd_len = sizeof(cmd);
-
-	memcpy(cmd.magic,IPROXY,4);
-	cmd.id = IPROXY_UNSET;
-	cmd.key_len = key_len;
-	cmd.value_len = 0;
-	memcpy(buf,(char *)&cmd, cmd_len);
-
-	//printf("int: %d\n", sizeof(int));
-/*	printf("cmd_len: %d\n", cmd_len);
-	printf("key_len: %d\n", cmd.key_len);
-	printf("key: %s\n", key);
-	printf("value_len: %d\n", cmd.value_len);
-	printf("value: %s\n", value);*/
-
-	snprintf(buf + cmd_len,cmd.key_len,"%s",key);
-
-	printf("UNSET: %s\n", key);
-	int total_len = cmd_len + cmd.key_len + cmd.value_len;
-
-	int len = write(sockfd, buf, total_len);
-
-	close(sockfd);
-	//printf("send: %d, str_len: %d\n", len, total_len);
-	return (len == (total_len + 1)) ? 0 : -1;
+	} else
+		return iproxy_send(IPROXY_UNSET, key, NULL);
 }
 
 int iproxy_get(char *key, char *value)
@@ -223,45 +224,8 @@ int iproxy_get(char *key, char *value)
 	if (!key || *key == '\0' || !value ) {
 		printf("key and value must not be null\n");
 		return -1;
-	}
-
-	int key_len = strlen(key) + 1;
-	if (key_len > MAX_KEY_LEN ) {
-		printf("key max length is %d\n", MAX_KEY_LEN);
-		return -1;
-	}
-
-	iproxy_cmd_t cmd;
-	char buf[1024] = {'\0'};
-
-	int cmd_len = sizeof(cmd);
-
-	memcpy(cmd.magic,IPROXY,4);
-	cmd.id = IPROXY_GET;
-	cmd.key_len = key_len;
-	cmd.value_len = 0;
-	memcpy(buf,(char *)&cmd, cmd_len);
-
-	snprintf(buf + cmd_len,cmd.key_len,"%s",key);
-
-	int total_len = cmd_len + cmd.key_len;
-
-	int sockfd = iproxyd_connect();
-	if (sockfd < 0) {
-		return -1;
-	}
-
-	usleep(1000);
-	int len = write(sockfd, buf, total_len);
-
-	int ret = read(sockfd, buf, 1024);
-
-	close(sockfd);
-
-	snprintf(value, 1024, "%s",buf);
-
-	//printf("GET: value: %s\n", buf);
-	return 0;
+	} else
+		return iproxy_send_recv(IPROXY_GET, key, value);
 }
 
 int iproxy_sub(iproxy_handle_t *iproxy_handle, char *key, void (*func)(char *))
@@ -271,41 +235,27 @@ int iproxy_sub(iproxy_handle_t *iproxy_handle, char *key, void (*func)(char *))
 		return -1;
 	}
 
-	int key_len = strlen(key) + 1;
-	if (key_len > MAX_KEY_LEN) {
-		printf("key max length is %d\n", MAX_KEY_LEN);
+	int length = 0;
+	char *send_buf = construct_packet(IPROXY_SUB, key, NULL, &length);
+	if (!send_buf) {
+		printf("construct_packet error\n");
 		return -1;
 	}
-
-	iproxy_cmd_t cmd;
-	char buf[1024] = {'\0'};
-
-	int cmd_len = sizeof(cmd);
-
-	memcpy(cmd.magic,IPROXY,4);
-	cmd.id = IPROXY_SUB;
-	cmd.key_len = key_len;
-	cmd.value_len = 0;
-	memcpy(buf,(char *)&cmd, cmd_len);
-
-	snprintf(buf + cmd_len,cmd.key_len,"%s",key);
-
-	int total_len = cmd_len + cmd.key_len;
-
-	int len = write(iproxy_handle->sockfd, buf, total_len);
+	write(iproxy_handle->sockfd, send_buf, length);
+	free(send_buf);
 
 	iproxy_func_node_t *func_node;
 	func_node = malloc(sizeof(iproxy_func_node_t));
 	func_node->func = func;
 
-	char *key1 = malloc(cmd.key_len);
-	snprintf(key1, cmd.key_len, "%s", key);
+	int key_len = strlen(key) + 1;
+	char *key1 = malloc(key_len);
+	snprintf(key1, key_len, "%s", key);
 
 	int ret = hashmap_put(iproxy_handle->hashmap, key1, func_node);
 	//printf("hashmap_put ret: %d\n", ret);
-
 	printf("SUB: key: %s\n", key);
-	return 0;
+	return ret;
 }
 
 int iproxy_sub_and_get(char *key, char *value)
@@ -320,58 +270,24 @@ int iproxy_unsub(iproxy_handle_t *iproxy_handle, char *key)
 		return -1;
 	}
 
-	int key_len = strlen(key) + 1;
-	if (key_len > MAX_KEY_LEN) {
-		printf("key max length is %d\n", MAX_KEY_LEN);
+	int length = 0;
+	char *send_buf = construct_packet(IPROXY_UNSUB, key, NULL, &length);
+	if (!send_buf) {
+		printf("construct_packet error\n");
 		return -1;
 	}
-	iproxy_cmd_t cmd;
-	char buf[1024] = {'\0'};
 
-	int cmd_len = sizeof(cmd);
-
-	memcpy(cmd.magic,IPROXY,4);
-	cmd.id = IPROXY_UNSUB;
-	cmd.key_len = key_len;
-	cmd.value_len = 0;
-	memcpy(buf,(char *)&cmd, cmd_len);
-
-	snprintf(buf + cmd_len,cmd.key_len,"%s",key);
-
-	int total_len = cmd_len + cmd.key_len;
-
-	int len = write(iproxy_handle->sockfd, buf, total_len);
+	write(iproxy_handle->sockfd, send_buf, length);
+	free(send_buf);
 
 	int ret = hashmap_remove(iproxy_handle->hashmap, key);
-	//printf("hashmap_put ret: %d\n", ret);
-
 	printf("UNSUB: key: %s\n", key);
-	return 0;
+	return ret;
 }
 
 int iproxy_sync(void)
 {
-	int sockfd = iproxyd_connect();
-	if (sockfd < 0) {
-		return -1;
-	}
-
-	iproxy_cmd_t cmd;
-	char buf[1024] = {'\0'};
-
-	int cmd_len = sizeof(cmd);
-
-	memcpy(cmd.magic,IPROXY,4);
-	cmd.id = IPROXY_SYNC;
-	cmd.key_len = 0;
-	cmd.value_len = 0;
-	memcpy(buf,(char *)&cmd, cmd_len);
-
-	int len = write(sockfd, buf, cmd_len);
-
-	close(sockfd);
-	//printf("send: %d, str_len: %d\n", len, total_len);
-	return (len == cmd_len) ? 0 : -1;
+	return iproxy_send(IPROXY_SYNC, NULL, NULL);
 }
 
 int iproxy_list(void)
@@ -387,15 +303,13 @@ int iproxy_list(void)
 	cmd.value_len = 0;
 	memcpy(buf,(char *)&cmd, cmd_len);
 
-	int total_len = cmd_len + cmd.key_len;
-
 	int sockfd = iproxyd_connect();
 	if (sockfd < 0) {
 		return -1;
 	}
 
 	usleep(1000);
-	int ret = write(sockfd, buf, total_len);
+	int ret = write(sockfd, buf, cmd_len);
 	char *key, *value;
 	int key_len, value_len;
 
@@ -425,43 +339,7 @@ int iproxy_factory_get(char *key, char *value)
 		return -1;
 	}
 
-	int key_len = strlen(key) + 1;
-	if (key_len > MAX_KEY_LEN ) {
-		printf("key max length is %d\n", MAX_KEY_LEN);
-		return -1;
-	}
-
-	iproxy_cmd_t cmd;
-	char buf[1024] = {'\0'};
-
-	int cmd_len = sizeof(cmd);
-
-	memcpy(cmd.magic,IPROXY,4);
-	cmd.id = FACTORY_GET;
-	cmd.key_len = key_len;
-	cmd.value_len = 0;
-	memcpy(buf,(char *)&cmd, cmd_len);
-
-	snprintf(buf + cmd_len,cmd.key_len,"%s",key);
-
-	int total_len = cmd_len + cmd.key_len;
-
-	int sockfd = iproxyd_connect();
-	if (sockfd < 0) {
-		return -1;
-	}
-
-	usleep(1000);
-	int len = write(sockfd, buf, total_len);
-
-	int ret = read(sockfd, buf, 1024);
-
-	close(sockfd);
-
-	snprintf(value, 1024, "%s",buf);
-
-	//printf("GET: value: %s\n", buf);
-	return 0;
+	return iproxy_send_recv(FACTORY_GET, key, value);
 }
 
 int iproxy_factory_list(void)
