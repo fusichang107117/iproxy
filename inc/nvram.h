@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "hashmap.h"
+#include "iproxy.h"
 
 #define CONFIG_PARTITION "config"
 #define FACTORY_PARTITION "factory"
@@ -21,7 +22,7 @@
 #define SDRAM_REFRESH   SDRAM_REF(0x40)
 
 typedef struct {
-	map_t map;
+	map_t hashmap;
 	uint32_t magic;
 	uint32_t len;
 	uint32_t crc_ver_init;
@@ -29,7 +30,13 @@ typedef struct {
 	uint32_t config_ncdl;
 }nvram_handle_t;
 
-nvram_handle_t *backend_nvram_init(int factory);
+nvram_handle_t *backend_nvram_init(iproxy_cmd_level_t level);
 void backend_nvram_destory(nvram_handle_t *nvt);
+
+int nvram_get(nvram_handle_t *nvt, char *key);
+int nvram_list(nvram_handle_t *nvt);
+
+int backend_nvram_sync(nvram_handle_t *nvt);
+int iproxy_sync_command(iproxy_cmd_level_t level, iproxy_cmd_id_t cmd, char *key);
 
 #endif

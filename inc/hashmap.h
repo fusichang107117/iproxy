@@ -42,6 +42,12 @@ unsigned long crc32(const unsigned char *s, unsigned int len);
 /* Return a 32-bit CRC of the contents of the buffer. */
 unsigned long crc32_start(const unsigned char *s, unsigned int len, unsigned long last);
 
+/* Return a 8-bit CRC of the contents of the buffer. */
+unsigned char crc8(const unsigned char *s, unsigned int len);
+
+/* Return a 32-bit CRC of the contents of the buffer. */
+unsigned char crc8_start(const unsigned char *s, unsigned int len, unsigned long last);
+
 /*
  * Return an empty hashmap. Returns NULL if empty.
 */
@@ -72,6 +78,16 @@ int hashmap_get(map_t in, char* key, any_t *arg);
 int hashmap_get_from_index(map_t in, int  index, char *buf, int buf_len, int *real_len);
 
 /*
+ * get key value from spec index in the hashmap
+ */
+int hashmap_get_key_value_index(map_t in, int  i, char **key, void **data);
+
+/*
+ * list all element in the hashmap
+ */
+int hashmap_get_list_all(map_t in);
+
+/*
  * Update the value of the hashmap with a key
  */
 int hashmap_update_one_value(map_t in, char* key, char* value);
@@ -100,6 +116,11 @@ int hashmap_remove_free(map_t in, char* key);
  * Remove an element from the hashmap. Return MAP_OK or MAP_MISSING.
  */
 int hashmap_remove(map_t in, char* key);
+
+/*
+ * clear hashmap Deallocate all key,data,value
+ */
+void hashmap_clear(map_t in);
 
 /*
  * Free the hashmap
