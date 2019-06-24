@@ -152,7 +152,7 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 			ret = hashmap_get(hashmap, key, (void**)(&data));
 			if (ret == MAP_OK) {
 				if (strncmp(data->value, value, cmd->value_len) == 0) {
-					log_info("value is same, ignore it\n");
+					log_warning("value is same, ignore it\n");
 				} else {
 					int i = 0;
 
@@ -194,7 +194,7 @@ static void ipc_recv_handle(struct ev_loop *loop, struct ev_io *watcher, int rev
 			ret = hashmap_get(hashmap, key, (void**)(&data));
 			//log_debug("hashmap_get ret: %d\n", ret);
 			if (ret != MAP_OK) {
-				log_info("%s not found\n", key);
+				log_warning("%s not found\n", key);
 				buf[0]='\0';
 			} else {
 				//log_debug("GET:key: %s\n", key);

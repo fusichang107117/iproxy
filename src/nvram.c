@@ -1,11 +1,8 @@
-#define _GNU_SOURCE 
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/file.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdint.h>
@@ -316,7 +313,7 @@ int nvram_list(nvram_handle_t *nvt)
 
 int iproxy_lock(char *path)
 {
-	int fd = open(path, O_CREAT|O_CLOEXEC, 660);
+	int fd = open(path, O_CREAT|O_CLOEXEC, 0660);
 	if ( fd > 0 ) {
 		if ( flock(fd, LOCK_EX) ) {
 			close(fd);fd = -1;
